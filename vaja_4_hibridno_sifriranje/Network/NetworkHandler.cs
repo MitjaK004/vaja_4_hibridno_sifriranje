@@ -21,6 +21,7 @@ namespace vaja_4_hibridno_sifriranje.Network
     class NetworkHandler
     {
         public Status status { get; private set; } = Status.Stopped;
+        private const int MaxBufflen = 1024;
         private byte[][]? RecievedFileData = null;
         private byte[][]? SendFileData = null;
         private string[]? RecievedFileNames = null;
@@ -37,15 +38,16 @@ namespace vaja_4_hibridno_sifriranje.Network
         private Task SendFiles() {
             iPEndPoint = new IPEndPoint(IPAddress.Parse(IP), Port);
 
-            ConnectionRunning = true;
-            while (ConnectionRunning)
-            {
-                Client = new TcpClient();
-                Client.Connect(iPEndPoint);
+            Client = new TcpClient();
+            Client.Connect(iPEndPoint);
 
-                NetStream = Client.GetStream();
-                RecieveAll();
+            using (NetStream = Client.GetStream())
+            {
+                SendAll();
             }
+
+            Client?.Close();
+
             return Task.CompletedTask;
         }
         private Task RecieveFiles() {
@@ -53,16 +55,14 @@ namespace vaja_4_hibridno_sifriranje.Network
             Listener = new TcpListener(iPEndPoint);
 
             Listener.Start();
-            ConnectionRunning = true;
 
-            while (ConnectionRunning)
-            {
-                using (Client = Listener.AcceptTcpClient())
-                using (NetStream = Client.GetStream())
-                {
-                    RecieveAll();
-                }
-            }
+           using (Client = Listener.AcceptTcpClient())
+           using (NetStream = Client.GetStream())
+           {
+               RecieveAll();
+           }
+
+            Listener.Stop();
 
             return Task.CompletedTask;
         }
@@ -79,8 +79,45 @@ namespace vaja_4_hibridno_sifriranje.Network
         {
             return status;
         }
-        private bool RecieveAll() { return true; }
-        private bool SendAll() { return true; }
+        private bool RecieveAll() {
+            int NumFiles = int.Parse(RecieveString(NetStream, MaxBufflen));
+            for (int i = 0; i < NumFiles; i++)
+            {
+                byte[][] RecievedParcels = new byte[0][];
+                int[] RecievedParcelSizes = new int[0];
+                string FileName = RecieveString(NetStream, MaxBufflen);
+                int NumParcels = int.Parse(RecieveString(NetStream, MaxBufflen));
+                for(int j = 0; j < NumParcels; j++)
+                {
+                    int ParcelSize = int.Parse(RecieveString(NetStream, MaxBufflen));
+                    byte[] Parcel = RecieveBytes(NetStream, MaxBufflen);
+                    RecievedParcelSizes.Append(ParcelSize);
+                    RecievedParcels.Append(Parcel);
+                }
+                byte[] FileData = ReverseParseBytes(RecievedParcels, RecievedParcelSizes);
+                RecievedFileNames.Append(FileName);
+                RecievedFileData.Append(FileData);
+            }
+            return true; 
+        }
+        private bool SendAll() {
+            int NumFiles = SendFileNames.Length;
+            Send(NetStream, NumFiles.ToString());
+            for(int i = 0; i < NumFiles; i++)
+            {
+                Send(NetStream, SendFileNames[i]);
+                byte[][] Parcels = new byte[0][];
+                int[] ParcelSizes = new int[0];
+                (Parcels, ParcelSizes) = ParseBytes(SendFileData[i], MaxBufflen);
+                Send(NetStream, ParcelSizes.Length.ToString());
+                for (int j = 0; j < ParcelSizes.Length; j++)
+                {
+                    Send(NetStream, ParcelSizes[j].ToString());
+                    Send(NetStream, Parcels[j]);
+                }
+            }
+            return true; 
+        }
         private bool WriteAllFiles()
         {
             try {
@@ -138,6 +175,47 @@ namespace vaja_4_hibridno_sifriranje.Network
                 return new Tuple<byte[][]?, string[]?>(null, null);
             }
         }
+        public static byte[] ReverseParseBytes(byte[][] Bytes, int[] ParcelSizes)
+        {
+            byte[] rval = new byte[0];
+            int y = 0;
+
+            foreach(int ParcelSize in ParcelSizes)
+            {
+                for(int i = 0; i < ParcelSize; i++)
+                {
+                    rval.Append(Bytes[y][i]);
+                }
+                y++;
+            }
+            
+            return rval;
+        }
+        public static Tuple<byte[][], int[]> ParseBytes(byte[] Bytes, int ParcelSize)
+        {
+            byte[][] rval = new byte[0][];
+            int[] parcelSizes = new int[0];
+            for(int i = 0; i < Bytes.Length; i += ParcelSize)
+            {
+                byte[] bytesRead;
+                int bytesSize;
+                (bytesRead, bytesSize) = GetBytesBetween(Bytes, i, i + ParcelSize);
+                rval.Append(bytesRead);
+                parcelSizes.Append(bytesSize);
+            }
+            return new Tuple<byte[][], int[]>(rval, parcelSizes);
+        }
+        public static Tuple<byte[], int> GetBytesBetween(byte[] bytes, int begin, int end)
+        {
+            byte[] rval = new byte[0];
+            int size = 0;
+            for(int i = begin; i < end && i < bytes.Length; i++)
+            {
+                rval.Append(bytes[i]);
+                size++;
+            }
+            return new Tuple<byte[], int>(rval, size);
+        }
         public static byte[]? ReadFile(string fileName)
         {
             try {
@@ -162,11 +240,11 @@ namespace vaja_4_hibridno_sifriranje.Network
                 return false;
             }
         }
-        private static string? RecieveString(NetworkStream ns, int MaxBufflen)
+        private static string? RecieveString(NetworkStream ns, int _MaxBufflen)
         {
             try
             {
-                byte[] buffer = new byte[MaxBufflen];
+                byte[] buffer = new byte[_MaxBufflen];
                 int len = ns.Read(buffer, 0, buffer.Length);
                 return Encoding.UTF8.GetString(buffer, 0, len);
             }
