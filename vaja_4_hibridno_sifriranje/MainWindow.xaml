@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:vaja_4_hibridno_sifriranje"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="Hybrid Encription" Height="250" Width="400">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="20"/>
@@ -13,13 +13,12 @@
         </Grid.RowDefinitions>
         <Menu Grid.Row="0">
             <MenuItem Header="File">
-                <MenuItem Header="Import"/>
-                <MenuItem Header="Export"/>
-                <MenuItem Header="Exit"/>
+                <MenuItem x:Name="add" Header="Add" Click="add_Click"/>
+                <MenuItem x:Name="exit" Header="Exit" Click="exit_Click"/>
             </MenuItem>
             <MenuItem Header="Send/Recieve">
-                <MenuItem Header="Send Files"/>
-                <MenuItem Header="Recieve Files"/>
+                <MenuItem x:Name="sendFiles" Header="Send Files" Click="sendFiles_Click"/>
+                <MenuItem x:Name="recieveFiles" Header="Recieve Files" Click="recieveFiles_Click"/>
             </MenuItem>
         </Menu>
 

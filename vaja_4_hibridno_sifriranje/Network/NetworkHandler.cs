@@ -21,6 +21,7 @@ namespace vaja_4_hibridno_sifriranje.Network
     class NetworkHandler
     {
         public Status status { get; private set; } = Status.Stopped;
+        public double Progress { get; private set; }
         private const int MaxBufflen = 1024;
         private byte[][]? RecievedFileData = null;
         private byte[][]? SendFileData = null;
@@ -30,12 +31,29 @@ namespace vaja_4_hibridno_sifriranje.Network
         private TcpListener? Listener = null;
         private NetworkStream? NetStream = null;
         private IPEndPoint? iPEndPoint = null;
-        private string IP = "127.0.0.1";
-        private int Port = 5789;
+        public string IP = "127.0.0.1";
+        public int Port = 5789;
         private bool ConnectionRunning = false;
-        private ObservableCollection<string> files = new ObservableCollection<string>();
+        private string[] SendFilePaths = new string[0];
         public NetworkHandler() {}
+        public NetworkHandler(int _Port) { Port = _Port; }
+        public NetworkHandler(string _IP, int _Port) { Port = _Port; IP = _IP; }
+        public bool AddFile(string Path)
+        {
+            if (File.Exists(Path))
+            {
+                SendFilePaths = SendFilePaths.Append(Path);
+                return true;
+            }
+            else
+            {
+                MessageBox.Show("File: \'" + Path + "\' does not exsist!", "ERROR");
+                return false;
+            }
+        }
         private Task SendFiles() {
+            (SendFileData, SendFileNames) = ReadAllFiles();
+
             iPEndPoint = new IPEndPoint(IPAddress.Parse(IP), Port);
 
             Client = new TcpClient();
@@ -64,20 +82,18 @@ namespace vaja_4_hibridno_sifriranje.Network
 
             Listener.Stop();
 
+            WriteAllFiles();
+
             return Task.CompletedTask;
         }
-        void Sender()
+        public void Sender()
         {
             Task.Run(SendFiles);
         }
 
-        void Reciever()
+        public void Reciever()
         {
             Task.Run(RecieveFiles);
-        }
-        Status GetStatus()
-        {
-            return status;
         }
         private bool RecieveAll() {
             int NumFiles = int.Parse(RecieveString(NetStream, MaxBufflen));
@@ -154,7 +170,7 @@ namespace vaja_4_hibridno_sifriranje.Network
             try {
                 string[]? fileNames = new string[0];
                 byte[][]? filesData = new byte[0][];
-                foreach(string file in files)
+                foreach(string file in SendFilePaths)
                 {
                     if (File.Exists(file))
                     {
