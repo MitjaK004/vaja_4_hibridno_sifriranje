@@ -8,10 +8,10 @@
         Title="Hybrid Encription" Height="250" Width="400">
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="20"/>
+            <RowDefinition Height="28"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <Menu Grid.Row="0">
+        <Menu Grid.Row="0" FontSize="16" >
             <MenuItem Header="File">
                 <MenuItem x:Name="add" Header="Add" Click="add_Click"/>
                 <MenuItem x:Name="exit" Header="Exit" Click="exit_Click"/>
@@ -21,6 +21,20 @@
                 <MenuItem x:Name="recieveFiles" Header="Recieve Files" Click="recieveFiles_Click"/>
             </MenuItem>
         </Menu>
-
+        <ListView Name="FilesListView" FontSize="12" Grid.Row="1"
+                      ItemsSource="{Binding FilePaths}">
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="Focusable" Value="false"/>
+                </Style>
+            </ListView.ItemContainerStyle>
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel>
+                        <Label Content="{Binding Value}"></Label>
+                    </StackPanel>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
     </Grid>
 </Window>

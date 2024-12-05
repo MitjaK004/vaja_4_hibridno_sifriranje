@@ -9,6 +9,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using vaja_4_hibridno_sifriranje.Network;
+using vaja_4_hibridno_sifriranje.ViewModelNamespace;
 
 namespace vaja_4_hibridno_sifriranje
 {
@@ -21,8 +22,10 @@ namespace vaja_4_hibridno_sifriranje
         private const string WindowTitle = "Hybrid Encription";
         private const string WindowTitleRecieve = "Hybrid Encription - Reciever";
         private const string WindowTitleSend = "Hybrid Encription - Sender";
+        private ViewModel VM = new ViewModel();
         public MainWindow()
         {
+            DataContext = VM;
             InitializeComponent();
         }
 
@@ -41,6 +44,7 @@ namespace vaja_4_hibridno_sifriranje
         private void add_Click(object sender, RoutedEventArgs e)
         {
             networkHandler.AddFile("C:\\Test\\baje.txt");
+            VM.AddFilePath("C:\\Test\\baje.txt");
         }
 
         private void exit_Click(object sender, RoutedEventArgs e)
