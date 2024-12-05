@@ -23,10 +23,10 @@ namespace vaja_4_hibridno_sifriranje.Network
         public Status status { get; private set; } = Status.Stopped;
         public double Progress { get; private set; }
         private const int MaxBufflen = 1024;
-        private byte[][]? RecievedFileData = null;
-        private byte[][]? SendFileData = null;
-        private string[]? RecievedFileNames = null;
-        private string[]? SendFileNames = null;
+        private List<byte[]> RecievedFileData = new List<byte[]>();
+        private List<byte[]> SendFileData = new List<byte[]>();
+        private List<string> RecievedFileNames = new List<string>();
+        private List<string> SendFileNames = new List<string>();
         private TcpClient? Client = null;
         private TcpListener? Listener = null;
         private NetworkStream? NetStream = null;
@@ -34,7 +34,7 @@ namespace vaja_4_hibridno_sifriranje.Network
         public string IP = "127.0.0.1";
         public int Port = 5789;
         private bool ConnectionRunning = false;
-        private string[] SendFilePaths = new string[0];
+        private List<string> SendFilePaths = new List<string>();
         public NetworkHandler() {}
         public NetworkHandler(int _Port) { Port = _Port; }
         public NetworkHandler(string _IP, int _Port) { Port = _Port; IP = _IP; }
@@ -42,7 +42,7 @@ namespace vaja_4_hibridno_sifriranje.Network
         {
             if (File.Exists(Path))
             {
-                SendFilePaths = SendFilePaths.Append(Path);
+                SendFilePaths.Append(Path);
                 return true;
             }
             else
@@ -99,8 +99,8 @@ namespace vaja_4_hibridno_sifriranje.Network
             int NumFiles = int.Parse(RecieveString(NetStream, MaxBufflen));
             for (int i = 0; i < NumFiles; i++)
             {
-                byte[][] RecievedParcels = new byte[0][];
-                int[] RecievedParcelSizes = new int[0];
+                List<byte[]> RecievedParcels = new List<byte[]>();
+                List<int> RecievedParcelSizes = new List<int>();
                 string FileName = RecieveString(NetStream, MaxBufflen);
                 int NumParcels = int.Parse(RecieveString(NetStream, MaxBufflen));
                 for(int j = 0; j < NumParcels; j++)
@@ -117,16 +117,16 @@ namespace vaja_4_hibridno_sifriranje.Network
             return true; 
         }
         private bool SendAll() {
-            int NumFiles = SendFileNames.Length;
+            int NumFiles = SendFileNames.Count;
             Send(NetStream, NumFiles.ToString());
             for(int i = 0; i < NumFiles; i++)
             {
                 Send(NetStream, SendFileNames[i]);
-                byte[][] Parcels = new byte[0][];
-                int[] ParcelSizes = new int[0];
+                List<byte[]> Parcels = new List<byte[]>();
+                List<int> ParcelSizes = new List<int>();
                 (Parcels, ParcelSizes) = ParseBytes(SendFileData[i], MaxBufflen);
-                Send(NetStream, ParcelSizes.Length.ToString());
-                for (int j = 0; j < ParcelSizes.Length; j++)
+                Send(NetStream, ParcelSizes.Count.ToString());
+                for (int j = 0; j < ParcelSizes.Count; j++)
                 {
                     Send(NetStream, ParcelSizes[j].ToString());
                     Send(NetStream, Parcels[j]);
@@ -165,11 +165,11 @@ namespace vaja_4_hibridno_sifriranje.Network
                 return false;
             }
         }
-        private Tuple<byte[][]?, string[]?> ReadAllFiles()
+        private Tuple<List<byte[]>, List<string>> ReadAllFiles()
         {
             try {
-                string[]? fileNames = new string[0];
-                byte[][]? filesData = new byte[0][];
+                List<string> fileNames = new List<string>();
+                List<byte[]> filesData = new List<byte[]>();
                 foreach(string file in SendFilePaths)
                 {
                     if (File.Exists(file))
@@ -183,34 +183,40 @@ namespace vaja_4_hibridno_sifriranje.Network
                         throw new FileNotFoundException(file);
                     }
                 }
-                return new Tuple<byte[][]?, string[]?>(filesData, fileNames);
+                return new Tuple<List<byte[]>, List<string>>(filesData, fileNames);
             }
             catch (Exception e)
             {
                 MessageBox.Show(e.Message + " ... " + e.StackTrace, "ERROR");
-                return new Tuple<byte[][]?, string[]?>(null, null);
+                return new Tuple<List<byte[]>, List<string>>(new List<byte[]>(), new List<string>());
             }
         }
-        public static byte[] ReverseParseBytes(byte[][] Bytes, int[] ParcelSizes)
+        public static byte[] ReverseParseBytes(List<byte[]> Bytes, List<int> ParcelSizes)
         {
-            byte[] rval = new byte[0];
+            int ArraySize = 0;
+            foreach(int ParcelSize in ParcelSizes)
+            {
+                ArraySize += ParcelSize;
+            }
+            byte[] rval = new byte[ArraySize];
+            int x = 0;
             int y = 0;
 
             foreach(int ParcelSize in ParcelSizes)
             {
                 for(int i = 0; i < ParcelSize; i++)
                 {
-                    rval.Append(Bytes[y][i]);
+                    rval[x++] = Bytes[y][i];
                 }
                 y++;
             }
             
             return rval;
         }
-        public static Tuple<byte[][], int[]> ParseBytes(byte[] Bytes, int ParcelSize)
+        public static Tuple<List<byte[]>, List<int>> ParseBytes(byte[] Bytes, int ParcelSize)
         {
-            byte[][] rval = new byte[0][];
-            int[] parcelSizes = new int[0];
+            List<byte[]> rval = new List<byte[]>();
+            List<int> parcelSizes = new List<int>();
             for(int i = 0; i < Bytes.Length; i += ParcelSize)
             {
                 byte[] bytesRead;
@@ -219,16 +225,20 @@ namespace vaja_4_hibridno_sifriranje.Network
                 rval.Append(bytesRead);
                 parcelSizes.Append(bytesSize);
             }
-            return new Tuple<byte[][], int[]>(rval, parcelSizes);
+            return new Tuple<List<byte[]>, List<int>>(rval, parcelSizes);
         }
         public static Tuple<byte[], int> GetBytesBetween(byte[] bytes, int begin, int end)
         {
-            byte[] rval = new byte[0];
             int size = 0;
-            for(int i = begin; i < end && i < bytes.Length; i++)
+            for (int i = begin; i < end && i < bytes.Length; i++)
             {
-                rval.Append(bytes[i]);
                 size++;
+            }
+            byte[] rval = new byte[size];
+            int x = 0;
+            for(int i = begin; i < size; i++)
+            {
+                rval[x++] = bytes[i];
             }
             return new Tuple<byte[], int>(rval, size);
         }
