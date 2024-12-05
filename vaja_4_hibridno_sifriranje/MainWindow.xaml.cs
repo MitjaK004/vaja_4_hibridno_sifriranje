@@ -40,7 +40,7 @@ namespace vaja_4_hibridno_sifriranje
 
         private void add_Click(object sender, RoutedEventArgs e)
         {
-            networkHandler.AddFile("D:\\Test\\baje.txt");
+            networkHandler.AddFile("C:\\Test\\baje.txt");
         }
 
         private void exit_Click(object sender, RoutedEventArgs e)

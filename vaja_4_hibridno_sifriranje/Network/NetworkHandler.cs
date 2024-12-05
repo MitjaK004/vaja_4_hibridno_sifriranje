@@ -42,7 +42,7 @@ namespace vaja_4_hibridno_sifriranje.Network
         {
             if (File.Exists(Path))
             {
-                SendFilePaths.Append(Path);
+                SendFilePaths.Add(Path);
                 return true;
             }
             else
@@ -107,12 +107,12 @@ namespace vaja_4_hibridno_sifriranje.Network
                 {
                     int ParcelSize = int.Parse(RecieveString(NetStream, MaxBufflen));
                     byte[] Parcel = RecieveBytes(NetStream, MaxBufflen);
-                    RecievedParcelSizes.Append(ParcelSize);
-                    RecievedParcels.Append(Parcel);
+                    RecievedParcelSizes.Add(ParcelSize);
+                    RecievedParcels.Add(Parcel);
                 }
                 byte[] FileData = ReverseParseBytes(RecievedParcels, RecievedParcelSizes);
-                RecievedFileNames.Append(FileName);
-                RecievedFileData.Append(FileData);
+                RecievedFileNames.Add(FileName);
+                RecievedFileData.Add(FileData);
             }
             return true; 
         }
@@ -174,9 +174,9 @@ namespace vaja_4_hibridno_sifriranje.Network
                 {
                     if (File.Exists(file))
                     {
-                        filesData.Append(ReadFile(file));
+                        filesData.Add(ReadFile(file));
                         string[] fp = file.Split('\\');
-                        fileNames.Append(fp[fp.Length - 1]);
+                        fileNames.Add(fp[fp.Length - 1]);
                     }
                     else
                     {
@@ -222,8 +222,8 @@ namespace vaja_4_hibridno_sifriranje.Network
                 byte[] bytesRead;
                 int bytesSize;
                 (bytesRead, bytesSize) = GetBytesBetween(Bytes, i, i + ParcelSize);
-                rval.Append(bytesRead);
-                parcelSizes.Append(bytesSize);
+                rval.Add(bytesRead);
+                parcelSizes.Add(bytesSize);
             }
             return new Tuple<List<byte[]>, List<int>>(rval, parcelSizes);
         }
