@@ -8,6 +8,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
+using vaja_4_hibridno_sifriranje.ViewModelNamespace;
 
 namespace vaja_4_hibridno_sifriranje.Network
 {
@@ -23,6 +24,7 @@ namespace vaja_4_hibridno_sifriranje.Network
         public Status ConnectionStatus { get; private set; } = Status.Stopped;
         public Status FileTransferStatus { get; private set; } = Status.Stopped;
         public double FileTransferProgress { get; private set; } = -1;
+        private ViewModel VM;
         private const int MaxBufflen = 4096;
         private const int KeyLength = 8192;
         private List<byte[]> RecievedFileData = new List<byte[]>();
@@ -41,6 +43,10 @@ namespace vaja_4_hibridno_sifriranje.Network
         public NetworkHandler() {}
         public NetworkHandler(int _Port) { Port = _Port; }
         public NetworkHandler(string _IP, int _Port) { Port = _Port; IP = _IP; }
+        public NetworkHandler(ViewModel _VM)
+        {
+            VM = _VM;
+        }
         public bool AddFile(string Path)
         {
             if (File.Exists(Path))
@@ -55,7 +61,8 @@ namespace vaja_4_hibridno_sifriranje.Network
             }
         }
         private Task SendFiles() {
-
+            VM.Title = ViewModel.WindowTitleSend;
+            VM.ConnectionStatus = Status.Wait.ToString();
             iPEndPoint = new IPEndPoint(IPAddress.Parse(IP), Port);
 
             Client = new TcpClient();
@@ -63,14 +70,18 @@ namespace vaja_4_hibridno_sifriranje.Network
 
             using (NetStream = Client.GetStream())
             {
+                VM.ConnectionStatus = Status.Success.ToString();
                 SendAll();
             }
 
+            VM.ConnectionStatus = Status.Stopped.ToString();
             Client?.Close();
-
+            VM.Title = ViewModel.WindowTitle;
             return Task.CompletedTask;
         }
         private Task RecieveFiles() {
+            VM.Title = ViewModel.WindowTitleRecieve;
+            VM.ConnectionStatus = Status.Wait.ToString();
             iPEndPoint = new IPEndPoint(IPAddress.Loopback, Port);
             Listener = new TcpListener(iPEndPoint);
 
@@ -79,11 +90,14 @@ namespace vaja_4_hibridno_sifriranje.Network
            using (Client = Listener.AcceptTcpClient())
            using (NetStream = Client.GetStream())
            {
-               RecieveAll();
+                VM.ConnectionStatus = Status.Success.ToString();
+                RecieveAll();
            }
 
             Listener.Stop();
 
+            VM.ConnectionStatus = Status.Stopped.ToString();
+            VM.Title = ViewModel.WindowTitle;
             return Task.CompletedTask;
         }
         public void Sender()
@@ -96,6 +110,8 @@ namespace vaja_4_hibridno_sifriranje.Network
             Task.Run(RecieveFiles);
         }
         private bool RecieveAll() {
+            VM.FilesTransferStatus = Status.Wait.ToString();
+            VM.FilesTransferProgress = "0%";
             int NumFiles = int.Parse(RecieveString(NetStream, MaxBufflen));
             Send(NetStream, success);
             for (int i = 0; i < NumFiles; i++)
@@ -123,9 +139,13 @@ namespace vaja_4_hibridno_sifriranje.Network
                     return false;
                 }
             }
+            VM.FilesTransferProgress = "100%";
+            VM.FilesTransferStatus = Status.Success.ToString();
             return true; 
         }
         private bool SendAll() {
+            VM.FilesTransferStatus = Status.Wait.ToString();
+            VM.FilesTransferProgress = "0%";
             int NumFiles = SendFilePaths.Count;
             Send(NetStream, NumFiles.ToString());
             RecieveBytes(NetStream, MaxBufflen);
@@ -148,6 +168,8 @@ namespace vaja_4_hibridno_sifriranje.Network
                     RecieveBytes(NetStream, MaxBufflen);
                 }
             }
+            VM.FilesTransferProgress = "100%";
+            VM.FilesTransferStatus = Status.Success.ToString();
             return true; 
         }
         public static bool IsSpaceAvailableInCurrentFolder(long requiredSpaceInBytes)
@@ -157,7 +179,7 @@ namespace vaja_4_hibridno_sifriranje.Network
 
             string currentFolderPath = Environment.CurrentDirectory;
 
-            string rootPath = Path.GetPathRoot(currentFolderPath);
+            string rootPath = System.IO.Path.GetPathRoot(currentFolderPath);
 
             if (string.IsNullOrEmpty(rootPath))
                 throw new InvalidOperationException("Could not determine the root drive for the current folder.");
@@ -191,7 +213,7 @@ namespace vaja_4_hibridno_sifriranje.Network
             if (string.IsNullOrEmpty(filePath))
                 throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
 
-            string fileName = Path.GetFileName(filePath);
+            string fileName = System.IO.Path.GetFileName(filePath);
 
             if (string.IsNullOrEmpty(fileName))
                 throw new ArgumentException("The file path does not contain a valid file name.", nameof(filePath));

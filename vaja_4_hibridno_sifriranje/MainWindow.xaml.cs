@@ -20,13 +20,12 @@ namespace vaja_4_hibridno_sifriranje
     /// </summary>
     public partial class MainWindow : Window
     {
-        private NetworkHandler networkHandler = new NetworkHandler();
-        private const string WindowTitle = "Hybrid Encription";
-        private const string WindowTitleRecieve = "Hybrid Encription - Reciever";
-        private const string WindowTitleSend = "Hybrid Encription - Sender";
+        private NetworkHandler networkHandler;
+        
         private ViewModel VM = new ViewModel();
         public MainWindow()
         {
+            networkHandler = new NetworkHandler(VM);
             DataContext = VM;
             InitializeComponent();
         }
@@ -41,7 +40,6 @@ namespace vaja_4_hibridno_sifriranje
                 networkHandler.IP = sendWindow.IP;
                 networkHandler.Port = sendWindow.Port;
 
-                this.Title = WindowTitleSend;
                 networkHandler.Sender();
             }
             else
@@ -58,7 +56,6 @@ namespace vaja_4_hibridno_sifriranje
 
             if (result == true)
             {
-                this.Title = WindowTitleRecieve;
                 networkHandler.Port = receiveWindow.Port;
                 networkHandler.IP = "127.0.0.1";
                 networkHandler.Reciever();
@@ -95,6 +92,7 @@ namespace vaja_4_hibridno_sifriranje
 
         private void exit_Click(object sender, RoutedEventArgs e)
         {
+            VM.Title = ViewModel.WindowTitle;
             System.Environment.Exit(1);
         }
     }

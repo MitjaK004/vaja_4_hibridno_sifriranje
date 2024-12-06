@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:vaja_4_hibridno_sifriranje"
         mc:Ignorable="d"
-        Title="Hybrid Encription" Height="600" Width="700">
+        Title="{Binding Title}" Height="600" Width="700">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="28"/>

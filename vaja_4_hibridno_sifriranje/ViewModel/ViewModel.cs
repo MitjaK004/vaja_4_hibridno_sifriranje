@@ -9,13 +9,17 @@ using vaja_4_hibridno_sifriranje.Network;
 
 namespace vaja_4_hibridno_sifriranje.ViewModelNamespace
 {
-    class ViewModel : INotifyPropertyChanged
+    unsafe class ViewModel : INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler? PropertyChanged = null;
         private ObservableCollection<Path> _filePaths = new ObservableCollection<Path>();
         private string _connectionStatus = Status.Stopped.ToString();
         private string _filesTransferStatus = Status.Stopped.ToString();
         private string _filesTransferProgress = "--";
+        public const string WindowTitle = "Hybrid Encription";
+        public const string WindowTitleRecieve = "Hybrid Encription - Reciever";
+        public const string WindowTitleSend = "Hybrid Encription - Sender";
+        private string _title = WindowTitle;
         public ViewModel() { }
         public void AddFilePath(string FilePath)
         {
@@ -47,6 +51,21 @@ namespace vaja_4_hibridno_sifriranje.ViewModelNamespace
                 _filesTransferProgress = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("FilesTransferProgress"));
             }
+        }
+        public string Title
+        {
+            get { return _title; }
+            set
+            {
+                _title = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Title"));
+            }
+        }
+        public static string ProgressToString(double Progress)
+        {
+            string rval = "";
+            rval = Progress.ToString() + "%";
+            return rval;
         }
     }
 }
