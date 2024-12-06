@@ -13,8 +13,9 @@ namespace vaja_4_hibridno_sifriranje.ViewModelNamespace
     {
         public event PropertyChangedEventHandler? PropertyChanged = null;
         private ObservableCollection<Path> _filePaths = new ObservableCollection<Path>();
-        private Status _connectionStatus = Status.Stopped;
-        private Status _filesTransferStatus = Status.Stopped;
+        private string _connectionStatus = Status.Stopped.ToString();
+        private string _filesTransferStatus = Status.Stopped.ToString();
+        private string _filesTransferProgress = "--";
         public ViewModel() { }
         public void AddFilePath(string FilePath)
         {
@@ -22,20 +23,29 @@ namespace vaja_4_hibridno_sifriranje.ViewModelNamespace
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("FilePaths"));
         }
         public ObservableCollection<Path> FilePaths { get { return _filePaths; } }
-        public Status ConnectionStatus { 
+        public string ConnectionStatus { 
             get { return _connectionStatus; }
             set { 
                 _connectionStatus = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("ConnectionStatus"));
             }
         }
-        public Status FilesTransferStatus
+        public string FilesTransferStatus
         {
             get { return _filesTransferStatus; }
             set
             {
                 _filesTransferStatus = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("FilesTransferStatus"));
+            }
+        }
+        public string FilesTransferProgress
+        {
+            get { return _filesTransferProgress; }
+            set
+            {
+                _filesTransferProgress = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("FilesTransferProgress"));
             }
         }
     }

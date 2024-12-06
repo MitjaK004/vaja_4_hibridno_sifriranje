@@ -1,4 +1,6 @@
-﻿using System.Text;
+﻿using Microsoft.Win32;
+using System.Net.Sockets;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -31,20 +33,64 @@ namespace vaja_4_hibridno_sifriranje
 
         private void sendFiles_Click(object sender, RoutedEventArgs e)
         {
-            this.Title = WindowTitleSend;
-            networkHandler.Sender();
+            SendWindow sendWindow = new SendWindow();
+            bool? result = sendWindow.ShowDialog();
+
+            if (result == true)
+            {
+                networkHandler.IP = sendWindow.IP;
+                networkHandler.Port = sendWindow.Port;
+
+                this.Title = WindowTitleSend;
+                networkHandler.Sender();
+            }
+            else
+            {
+                MessageBox.Show("Send window was canceled.", "Info");
+            }
+            
         }
 
         private void recieveFiles_Click(object sender, RoutedEventArgs e)
         {
-            this.Title = WindowTitleRecieve;
-            networkHandler.Reciever();
+            RecieveWindow receiveWindow = new RecieveWindow();
+            bool? result = receiveWindow.ShowDialog();
+
+            if (result == true)
+            {
+                this.Title = WindowTitleRecieve;
+                networkHandler.Port = receiveWindow.Port;
+                networkHandler.IP = "127.0.0.1";
+                networkHandler.Reciever();
+            }
+            else
+            {
+                MessageBox.Show("Receive window was canceled.", "Info");
+            }
         }
 
         private void add_Click(object sender, RoutedEventArgs e)
         {
-            networkHandler.AddFile("C:\\Test\\baje.txt");
-            VM.AddFilePath("C:\\Test\\baje.txt");
+            OpenFileDialog openFileDialog = new OpenFileDialog();
+
+            openFileDialog.Title = "Select a File";
+            openFileDialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*";
+            openFileDialog.InitialDirectory = "C:\\";
+
+            bool? result = openFileDialog.ShowDialog();
+
+            if (result == true)
+            {
+                string selectedFilePath = openFileDialog.FileName;
+
+                if (networkHandler.AddFile(selectedFilePath))
+                    VM.AddFilePath(selectedFilePath);
+            }
+            else
+            {
+                MessageBox.Show("No file selected.", "Information");
+            }
+            
         }
 
         private void exit_Click(object sender, RoutedEventArgs e)

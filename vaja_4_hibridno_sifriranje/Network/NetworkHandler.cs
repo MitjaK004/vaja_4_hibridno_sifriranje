@@ -20,13 +20,15 @@ namespace vaja_4_hibridno_sifriranje.Network
     }
     class NetworkHandler
     {
-        public Status status { get; private set; } = Status.Stopped;
-        public double Progress { get; private set; }
-        private const int MaxBufflen = 1024;
+        public Status ConnectionStatus { get; private set; } = Status.Stopped;
+        public Status FileTransferStatus { get; private set; } = Status.Stopped;
+        public double FileTransferProgress { get; private set; } = -1;
+        private const int MaxBufflen = 4096;
+        private const int KeyLength = 8192;
         private List<byte[]> RecievedFileData = new List<byte[]>();
         private List<byte[]> SendFileData = new List<byte[]>();
         private List<string> RecievedFileNames = new List<string>();
-        private List<string> SendFileNames = new List<string>();
+        private List<string> SendFilePaths = new List<string>();
         private TcpClient? Client = null;
         private TcpListener? Listener = null;
         private NetworkStream? NetStream = null;
@@ -34,7 +36,8 @@ namespace vaja_4_hibridno_sifriranje.Network
         public string IP = "127.0.0.1";
         public int Port = 5789;
         private bool ConnectionRunning = false;
-        private List<string> SendFilePaths = new List<string>();
+        private byte[] success = { 1, 2, 3, 4, 5 };
+        private byte[] fail = { 7, 8, 9, 10, 11 };
         public NetworkHandler() {}
         public NetworkHandler(int _Port) { Port = _Port; }
         public NetworkHandler(string _IP, int _Port) { Port = _Port; IP = _IP; }
@@ -52,7 +55,6 @@ namespace vaja_4_hibridno_sifriranje.Network
             }
         }
         private Task SendFiles() {
-            (SendFileData, SendFileNames) = ReadAllFiles();
 
             iPEndPoint = new IPEndPoint(IPAddress.Parse(IP), Port);
 
@@ -82,8 +84,6 @@ namespace vaja_4_hibridno_sifriranje.Network
 
             Listener.Stop();
 
-            WriteAllFiles();
-
             return Task.CompletedTask;
         }
         public void Sender()
@@ -97,173 +97,159 @@ namespace vaja_4_hibridno_sifriranje.Network
         }
         private bool RecieveAll() {
             int NumFiles = int.Parse(RecieveString(NetStream, MaxBufflen));
+            Send(NetStream, success);
             for (int i = 0; i < NumFiles; i++)
             {
-                List<byte[]> RecievedParcels = new List<byte[]>();
-                List<int> RecievedParcelSizes = new List<int>();
-                string FileName = RecieveString(NetStream, MaxBufflen);
-                int NumParcels = int.Parse(RecieveString(NetStream, MaxBufflen));
-                for(int j = 0; j < NumParcels; j++)
-                {
-                    int ParcelSize = int.Parse(RecieveString(NetStream, MaxBufflen));
-                    byte[] Parcel = RecieveBytes(NetStream, MaxBufflen);
-                    RecievedParcelSizes.Add(ParcelSize);
-                    RecievedParcels.Add(Parcel);
+                string fileName = RecieveString(NetStream, MaxBufflen);
+                Send(NetStream, success);
+                int NumParcels = BitConverter.ToInt32(RecieveBytes(NetStream, MaxBufflen), 0);
+                Send(NetStream, success);
+                long FileSize = BitConverter.ToInt64(RecieveBytes(NetStream, MaxBufflen), 0);
+                if (IsSpaceAvailableInCurrentFolder(FileSize)) {
+                    Send(NetStream, success);
+                    for(int j = 0; j < NumParcels; j++)
+                    {
+                        int ParcelLength = BitConverter.ToInt32(RecieveBytes(NetStream, MaxBufflen));
+                        Send(NetStream, success);
+                        byte[] Data = RecieveBytes(NetStream, MaxBufflen);
+                        Array.Resize(ref Data, ParcelLength);
+                        AppendOrCreateFile(fileName, Data);
+                        Send(NetStream, success);
+                    }
                 }
-                byte[] FileData = ReverseParseBytes(RecievedParcels, RecievedParcelSizes);
-                RecievedFileNames.Add(FileName);
-                RecievedFileData.Add(FileData);
+                else {
+                    Send(NetStream, fail);
+                    MessageBox.Show("Not enough disk space!!!", "ERROR");
+                    return false;
+                }
             }
             return true; 
         }
         private bool SendAll() {
-            int NumFiles = SendFileNames.Count;
+            int NumFiles = SendFilePaths.Count;
             Send(NetStream, NumFiles.ToString());
+            RecieveBytes(NetStream, MaxBufflen);
             for(int i = 0; i < NumFiles; i++)
             {
-                Send(NetStream, SendFileNames[i]);
-                List<byte[]> Parcels = new List<byte[]>();
-                List<int> ParcelSizes = new List<int>();
-                (Parcels, ParcelSizes) = ParseBytes(SendFileData[i], MaxBufflen);
-                Send(NetStream, ParcelSizes.Count.ToString());
-                for (int j = 0; j < ParcelSizes.Count; j++)
+                Send(NetStream, GetFileName(SendFilePaths[i]));
+                RecieveBytes(NetStream, MaxBufflen);
+                int NumParcels = GetNumParcels(SendFilePaths[i], MaxBufflen);
+                Send(NetStream, BitConverter.GetBytes(NumParcels));
+                RecieveBytes(NetStream, MaxBufflen);
+                long FileSize = GetFileSize(SendFilePaths[i]);
+                Send(NetStream, BitConverter.GetBytes(FileSize));
+                RecieveBytes(NetStream, MaxBufflen);
+                for(int j = 0, x = 0; j < NumParcels; j++, x += MaxBufflen)
                 {
-                    Send(NetStream, ParcelSizes[j].ToString());
-                    Send(NetStream, Parcels[j]);
+                    byte[] Data = ReadPartOfBinaryFile(SendFilePaths[i], x, MaxBufflen);
+                    Send(NetStream, BitConverter.GetBytes((int) Data.Length));
+                    RecieveBytes(NetStream, MaxBufflen);
+                    Send(NetStream, Data);
+                    RecieveBytes(NetStream, MaxBufflen);
                 }
             }
             return true; 
         }
-        private bool WriteAllFiles()
+        public static bool IsSpaceAvailableInCurrentFolder(long requiredSpaceInBytes)
         {
-            try {
-                if (RecievedFileNames != null || RecievedFileData != null)
+            if (requiredSpaceInBytes < 0)
+                throw new ArgumentException("Required space must be a non-negative value.", nameof(requiredSpaceInBytes));
+
+            string currentFolderPath = Environment.CurrentDirectory;
+
+            string rootPath = Path.GetPathRoot(currentFolderPath);
+
+            if (string.IsNullOrEmpty(rootPath))
+                throw new InvalidOperationException("Could not determine the root drive for the current folder.");
+
+            DriveInfo driveInfo = new DriveInfo(rootPath);
+
+            if (!driveInfo.IsReady)
+                throw new InvalidOperationException($"The drive {rootPath} is not ready.");
+
+            long availableSpace = driveInfo.AvailableFreeSpace;
+            return availableSpace >= requiredSpaceInBytes;
+        }
+        public static int GetNumParcels(string filePath, int Bufflen)
+        {
+            long size = GetFileSize(filePath);
+            return (int)((size + ((long)Bufflen - 1)) / (long)Bufflen);
+        }
+        public static long GetFileSize(string filePath)
+        {
+            if (string.IsNullOrEmpty(filePath))
+                throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
+
+            if (!File.Exists(filePath))
+                throw new FileNotFoundException("The specified file does not exist.", filePath);
+
+            FileInfo fileInfo = new FileInfo(filePath);
+            return fileInfo.Length;
+        }
+        public static byte[] GetFileName(string filePath)
+        {
+            if (string.IsNullOrEmpty(filePath))
+                throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
+
+            string fileName = Path.GetFileName(filePath);
+
+            if (string.IsNullOrEmpty(fileName))
+                throw new ArgumentException("The file path does not contain a valid file name.", nameof(filePath));
+
+            return Encoding.UTF8.GetBytes(fileName);
+        }
+
+        public static byte[] ReadPartOfBinaryFile(string filePath, long startPosition, int numberOfBytes)
+        {
+            if (numberOfBytes <= 0)
+                throw new ArgumentException("Number of bytes to read must be greater than zero.", nameof(numberOfBytes));
+
+            if (!File.Exists(filePath))
+                throw new FileNotFoundException("The specified file does not exist.", filePath);
+
+            byte[] buffer = new byte[numberOfBytes];
+
+            using (FileStream fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+            {
+                if (startPosition < 0 || startPosition >= fileStream.Length)
+                    throw new ArgumentOutOfRangeException(nameof(startPosition), "Start position is outside the file range.");
+
+                fileStream.Seek(startPosition, SeekOrigin.Begin);
+                int bytesRead = fileStream.Read(buffer, 0, numberOfBytes);
+
+                if (bytesRead < numberOfBytes)
                 {
-                    int i = 0;
-                    foreach (string file in RecievedFileNames)
+                    Array.Resize(ref buffer, bytesRead);
+                }
+            }
+
+            return buffer;
+        }
+        public static void AppendOrCreateFile(string filePath, byte[] data)
+        {
+            if (data == null || data.Length == 0)
+                throw new ArgumentException("Data cannot be null or empty.", nameof(data));
+
+            try
+            {
+                if (File.Exists(filePath))
+                {
+                    using (FileStream fs = new FileStream(filePath, FileMode.Append, FileAccess.Write))
                     {
-                        if (RecievedFileData[i] != null)
-                        {
-                            WriteFile(file, RecievedFileData[i]);
-                        }
-                        else
-                        {
-                            throw new Exception("File data missng!");
-                        }
-                        i++;
+                        fs.Write(data, 0, data.Length);
                     }
                 }
                 else
                 {
-                    throw new Exception("Nothing to Write!");
-                }
-                return true;
-            }
-            catch(Exception e)
-            {
-                MessageBox.Show(e.Message + " ... " + e.StackTrace, "ERROR");
-                return false;
-            }
-        }
-        private Tuple<List<byte[]>, List<string>> ReadAllFiles()
-        {
-            try {
-                List<string> fileNames = new List<string>();
-                List<byte[]> filesData = new List<byte[]>();
-                foreach(string file in SendFilePaths)
-                {
-                    if (File.Exists(file))
+                    using (FileStream fs = new FileStream(filePath, FileMode.Create, FileAccess.Write))
                     {
-                        filesData.Add(ReadFile(file));
-                        string[] fp = file.Split('\\');
-                        fileNames.Add(fp[fp.Length - 1]);
-                    }
-                    else
-                    {
-                        throw new FileNotFoundException(file);
+                        fs.Write(data, 0, data.Length);
                     }
                 }
-                return new Tuple<List<byte[]>, List<string>>(filesData, fileNames);
-            }
-            catch (Exception e)
-            {
-                MessageBox.Show(e.Message + " ... " + e.StackTrace, "ERROR");
-                return new Tuple<List<byte[]>, List<string>>(new List<byte[]>(), new List<string>());
-            }
-        }
-        public static byte[] ReverseParseBytes(List<byte[]> Bytes, List<int> ParcelSizes)
-        {
-            int ArraySize = 0;
-            foreach(int ParcelSize in ParcelSizes)
-            {
-                ArraySize += ParcelSize;
-            }
-            byte[] rval = new byte[ArraySize];
-            int x = 0;
-            int y = 0;
-
-            foreach(int ParcelSize in ParcelSizes)
-            {
-                for(int i = 0; i < ParcelSize; i++)
-                {
-                    rval[x++] = Bytes[y][i];
-                }
-                y++;
-            }
-            
-            return rval;
-        }
-        public static Tuple<List<byte[]>, List<int>> ParseBytes(byte[] Bytes, int ParcelSize)
-        {
-            List<byte[]> rval = new List<byte[]>();
-            List<int> parcelSizes = new List<int>();
-            for(int i = 0; i < Bytes.Length; i += ParcelSize)
-            {
-                byte[] bytesRead;
-                int bytesSize;
-                (bytesRead, bytesSize) = GetBytesBetween(Bytes, i, i + ParcelSize);
-                rval.Add(bytesRead);
-                parcelSizes.Add(bytesSize);
-            }
-            return new Tuple<List<byte[]>, List<int>>(rval, parcelSizes);
-        }
-        public static Tuple<byte[], int> GetBytesBetween(byte[] bytes, int begin, int end)
-        {
-            int size = 0;
-            for (int i = begin; i < end && i < bytes.Length; i++)
-            {
-                size++;
-            }
-            byte[] rval = new byte[size];
-            int x = 0;
-            for(int i = begin; i < size; i++)
-            {
-                rval[x++] = bytes[i];
-            }
-            return new Tuple<byte[], int>(rval, size);
-        }
-        public static byte[]? ReadFile(string fileName)
-        {
-            try {
-                byte[] fileBytes = File.ReadAllBytes(fileName);
-                return fileBytes;
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message + " ... " + ex.StackTrace, "ERROR");
-                return null;
-            }
-        }
-        public static bool WriteFile(string fileName, byte[] fileBytes)
-        {
-            try {
-                File.WriteAllBytes(fileName, fileBytes);
-                return true;
-            }
-            catch (Exception e)
-            {
-                MessageBox.Show(e.Message + " ... " + e.StackTrace, "ERROR");
-                return false;
+                MessageBox.Show($"An error occurred: {ex.Message} ... {ex.StackTrace}", "ERROR");
             }
         }
         private static string? RecieveString(NetworkStream ns, int _MaxBufflen)
@@ -325,6 +311,6 @@ namespace vaja_4_hibridno_sifriranje.Network
                 return false;
             }
         }
-
+        
     }
 }
