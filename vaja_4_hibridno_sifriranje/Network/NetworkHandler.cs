@@ -21,9 +21,9 @@ namespace vaja_4_hibridno_sifriranje.Network
     }
     class NetworkHandler
     {
-        public Status ConnectionStatus { get; private set; } = Status.Stopped;
-        public Status FileTransferStatus { get; private set; } = Status.Stopped;
-        public double FileTransferProgress { get; private set; } = -1;
+        public double FileTransferProgress { get; private set; } = 0;
+        public double PacketShare { get; private set; } = 0;
+        public int NumPackets { get; private set; } = 0;
         private ViewModel VM;
         private const int MaxBufflen = 4096;
         private const int KeyLength = 8192;
@@ -63,6 +63,8 @@ namespace vaja_4_hibridno_sifriranje.Network
         private Task SendFiles() {
             VM.Title = ViewModel.WindowTitleSend;
             VM.ConnectionStatus = Status.Wait.ToString();
+            FileTransferProgress = 0;
+            VM.FilesTransferProgress = ViewModel.ProgressToString(FileTransferProgress);
             iPEndPoint = new IPEndPoint(IPAddress.Parse(IP), Port);
 
             Client = new TcpClient();
@@ -74,6 +76,7 @@ namespace vaja_4_hibridno_sifriranje.Network
                 SendAll();
             }
 
+            MessageBox.Show("Files Sent Succesfully", "Info");
             VM.ConnectionStatus = Status.Stopped.ToString();
             Client?.Close();
             VM.Title = ViewModel.WindowTitle;
@@ -82,6 +85,9 @@ namespace vaja_4_hibridno_sifriranje.Network
         private Task RecieveFiles() {
             VM.Title = ViewModel.WindowTitleRecieve;
             VM.ConnectionStatus = Status.Wait.ToString();
+            FileTransferProgress = 0;
+            VM.FilesTransferProgress = ViewModel.ProgressToString(FileTransferProgress);
+            (NumPackets, PacketShare) = CalculateAllPackets();
             iPEndPoint = new IPEndPoint(IPAddress.Loopback, Port);
             Listener = new TcpListener(iPEndPoint);
 
@@ -95,6 +101,7 @@ namespace vaja_4_hibridno_sifriranje.Network
            }
 
             Listener.Stop();
+            MessageBox.Show("Files Recieved Succesfully", "Info");
 
             VM.ConnectionStatus = Status.Stopped.ToString();
             VM.Title = ViewModel.WindowTitle;
@@ -111,7 +118,7 @@ namespace vaja_4_hibridno_sifriranje.Network
         }
         private bool RecieveAll() {
             VM.FilesTransferStatus = Status.Wait.ToString();
-            VM.FilesTransferProgress = "0%";
+            (NumPackets, PacketShare) = CalculateAllPackets();
             int NumFiles = int.Parse(RecieveString(NetStream, MaxBufflen));
             Send(NetStream, success);
             for (int i = 0; i < NumFiles; i++)
@@ -122,6 +129,7 @@ namespace vaja_4_hibridno_sifriranje.Network
                 Send(NetStream, success);
                 long FileSize = BitConverter.ToInt64(RecieveBytes(NetStream, MaxBufflen), 0);
                 if (IsSpaceAvailableInCurrentFolder(FileSize)) {
+                    DeleteFileIfExists(fileName);
                     Send(NetStream, success);
                     for(int j = 0; j < NumParcels; j++)
                     {
@@ -132,6 +140,8 @@ namespace vaja_4_hibridno_sifriranje.Network
                         AppendOrCreateFile(fileName, Data);
                         Send(NetStream, success);
                     }
+                    FileTransferProgress += PacketShare;
+                    VM.FilesTransferProgress = ViewModel.ProgressToString(FileTransferProgress);
                 }
                 else {
                     Send(NetStream, fail);
@@ -145,7 +155,6 @@ namespace vaja_4_hibridno_sifriranje.Network
         }
         private bool SendAll() {
             VM.FilesTransferStatus = Status.Wait.ToString();
-            VM.FilesTransferProgress = "0%";
             int NumFiles = SendFilePaths.Count;
             Send(NetStream, NumFiles.ToString());
             RecieveBytes(NetStream, MaxBufflen);
@@ -166,11 +175,40 @@ namespace vaja_4_hibridno_sifriranje.Network
                     RecieveBytes(NetStream, MaxBufflen);
                     Send(NetStream, Data);
                     RecieveBytes(NetStream, MaxBufflen);
+                    FileTransferProgress += PacketShare;
+                    VM.FilesTransferProgress = ViewModel.ProgressToString(FileTransferProgress);
                 }
             }
             VM.FilesTransferProgress = "100%";
             VM.FilesTransferStatus = Status.Success.ToString();
             return true; 
+        }
+        public Tuple<int, double> CalculateAllPackets()
+        {
+            int AllPackets = 0;
+            foreach(var SendFilePath in SendFilePaths)
+            {
+                AllPackets += GetNumParcels(SendFilePath, MaxBufflen);
+            }
+            double OnePacketShare = 1.0 / (double)AllPackets;
+            return new Tuple<int, double>(AllPackets, OnePacketShare);
+        }
+        public static void DeleteFileIfExists(string filePath)
+        {
+            if (string.IsNullOrEmpty(filePath))
+                throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
+
+            if (File.Exists(filePath))
+            {
+                try
+                {
+                    File.Delete(filePath);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error deleting file '{filePath}': {ex.Message}");
+                }
+            }
         }
         public static bool IsSpaceAvailableInCurrentFolder(long requiredSpaceInBytes)
         {
