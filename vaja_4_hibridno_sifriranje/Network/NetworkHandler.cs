@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -35,6 +36,9 @@ namespace vaja_4_hibridno_sifriranje.Network
         private TcpListener? Listener = null;
         private NetworkStream? NetStream = null;
         private IPEndPoint? iPEndPoint = null;
+        private byte[] AesIV = null;
+        private byte[] SharedSecret = null;
+        private byte[] AesKey = null;
         public string IP = "127.0.0.1";
         public int Port = 5789;
         private bool ConnectionRunning = false;
@@ -72,6 +76,10 @@ namespace vaja_4_hibridno_sifriranje.Network
 
             using (NetStream = Client.GetStream())
             {
+                SharedSecret = DiffieHellmanHelper.PerformHandshakeClient(NetStream, 1024, out AesIV);
+
+                AesKey = AESHelper.Encrypt(SharedSecret, SharedSecret, AesIV)[..32];
+
                 VM.ConnectionStatus = Status.Success.ToString();
                 SendAll();
             }
@@ -96,6 +104,10 @@ namespace vaja_4_hibridno_sifriranje.Network
            using (Client = Listener.AcceptTcpClient())
            using (NetStream = Client.GetStream())
            {
+                SharedSecret = DiffieHellmanHelper.PerformHandshakeServer(NetStream, 1024, out AesIV);
+
+                AesKey = AESHelper.Encrypt(SharedSecret, SharedSecret, AesIV)[..32];
+
                 VM.ConnectionStatus = Status.Success.ToString();
                 RecieveAll();
            }
@@ -119,32 +131,32 @@ namespace vaja_4_hibridno_sifriranje.Network
         private bool RecieveAll() {
             VM.FilesTransferStatus = Status.Wait.ToString();
             (NumPackets, PacketShare) = CalculateAllPackets();
-            int NumFiles = int.Parse(RecieveString(NetStream, MaxBufflen));
-            Send(NetStream, success);
+            int NumFiles = int.Parse(RecieveString(NetStream, MaxBufflen, AesKey, AesIV));
+            Send(NetStream, success, AesKey, AesIV);
             for (int i = 0; i < NumFiles; i++)
             {
-                string fileName = RecieveString(NetStream, MaxBufflen);
-                Send(NetStream, success);
-                int NumParcels = BitConverter.ToInt32(RecieveBytes(NetStream, MaxBufflen), 0);
-                Send(NetStream, success);
-                long FileSize = BitConverter.ToInt64(RecieveBytes(NetStream, MaxBufflen), 0);
+                string fileName = RecieveString(NetStream, MaxBufflen, AesKey, AesIV);
+                Send(NetStream, success, AesKey, AesIV);
+                int NumParcels = BitConverter.ToInt32(RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV), 0);
+                Send(NetStream, success, AesKey, AesIV);
+                long FileSize = BitConverter.ToInt64(RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV), 0);
                 if (IsSpaceAvailableInCurrentFolder(FileSize)) {
                     DeleteFileIfExists(fileName);
-                    Send(NetStream, success);
+                    Send(NetStream, success, AesKey, AesIV);
                     for(int j = 0; j < NumParcels; j++)
                     {
-                        int ParcelLength = BitConverter.ToInt32(RecieveBytes(NetStream, MaxBufflen));
-                        Send(NetStream, success);
-                        byte[] Data = RecieveBytes(NetStream, MaxBufflen);
+                        int ParcelLength = BitConverter.ToInt32(RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV));
+                        Send(NetStream, success, AesKey, AesIV);
+                        byte[] Data = RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
                         Array.Resize(ref Data, ParcelLength);
                         AppendOrCreateFile(fileName, Data);
-                        Send(NetStream, success);
+                        Send(NetStream, success, AesKey, AesIV);
                     }
                     FileTransferProgress += PacketShare;
                     VM.FilesTransferProgress = ViewModel.ProgressToString(FileTransferProgress);
                 }
                 else {
-                    Send(NetStream, fail);
+                    Send(NetStream, fail, AesKey, AesIV);
                     MessageBox.Show("Not enough disk space!!!", "ERROR");
                     return false;
                 }
@@ -156,25 +168,25 @@ namespace vaja_4_hibridno_sifriranje.Network
         private bool SendAll() {
             VM.FilesTransferStatus = Status.Wait.ToString();
             int NumFiles = SendFilePaths.Count;
-            Send(NetStream, NumFiles.ToString());
-            RecieveBytes(NetStream, MaxBufflen);
+            Send(NetStream, NumFiles.ToString(), AesKey, AesIV);
+            RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
             for(int i = 0; i < NumFiles; i++)
             {
-                Send(NetStream, GetFileName(SendFilePaths[i]));
-                RecieveBytes(NetStream, MaxBufflen);
+                Send(NetStream, GetFileName(SendFilePaths[i]), AesKey, AesIV);
+                RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
                 int NumParcels = GetNumParcels(SendFilePaths[i], MaxBufflen);
-                Send(NetStream, BitConverter.GetBytes(NumParcels));
-                RecieveBytes(NetStream, MaxBufflen);
+                Send(NetStream, BitConverter.GetBytes(NumParcels), AesKey, AesIV);
+                RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
                 long FileSize = GetFileSize(SendFilePaths[i]);
-                Send(NetStream, BitConverter.GetBytes(FileSize));
-                RecieveBytes(NetStream, MaxBufflen);
+                Send(NetStream, BitConverter.GetBytes(FileSize), AesKey, AesIV);
+                RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
                 for(int j = 0, x = 0; j < NumParcels; j++, x += MaxBufflen)
                 {
                     byte[] Data = ReadPartOfBinaryFile(SendFilePaths[i], x, MaxBufflen);
-                    Send(NetStream, BitConverter.GetBytes((int) Data.Length));
-                    RecieveBytes(NetStream, MaxBufflen);
-                    Send(NetStream, Data);
-                    RecieveBytes(NetStream, MaxBufflen);
+                    Send(NetStream, BitConverter.GetBytes((int) Data.Length), AesKey, AesIV);
+                    RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
+                    Send(NetStream, Data, AesKey, AesIV);
+                    RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
                     FileTransferProgress += PacketShare;
                     VM.FilesTransferProgress = ViewModel.ProgressToString(FileTransferProgress);
                 }
@@ -183,7 +195,7 @@ namespace vaja_4_hibridno_sifriranje.Network
             VM.FilesTransferStatus = Status.Success.ToString();
             return true; 
         }
-        public Tuple<int, double> CalculateAllPackets()
+        private Tuple<int, double> CalculateAllPackets()
         {
             int AllPackets = 0;
             foreach(var SendFilePath in SendFilePaths)
@@ -193,7 +205,8 @@ namespace vaja_4_hibridno_sifriranje.Network
             double OnePacketShare = 1.0 / (double)AllPackets;
             return new Tuple<int, double>(AllPackets, OnePacketShare);
         }
-        public static void DeleteFileIfExists(string filePath)
+        
+        private static void DeleteFileIfExists(string filePath)
         {
             if (string.IsNullOrEmpty(filePath))
                 throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
@@ -210,7 +223,7 @@ namespace vaja_4_hibridno_sifriranje.Network
                 }
             }
         }
-        public static bool IsSpaceAvailableInCurrentFolder(long requiredSpaceInBytes)
+        private static bool IsSpaceAvailableInCurrentFolder(long requiredSpaceInBytes)
         {
             if (requiredSpaceInBytes < 0)
                 throw new ArgumentException("Required space must be a non-negative value.", nameof(requiredSpaceInBytes));
@@ -230,12 +243,12 @@ namespace vaja_4_hibridno_sifriranje.Network
             long availableSpace = driveInfo.AvailableFreeSpace;
             return availableSpace >= requiredSpaceInBytes;
         }
-        public static int GetNumParcels(string filePath, int Bufflen)
+        private static int GetNumParcels(string filePath, int Bufflen)
         {
             long size = GetFileSize(filePath);
             return (int)((size + ((long)Bufflen - 1)) / (long)Bufflen);
         }
-        public static long GetFileSize(string filePath)
+        private static long GetFileSize(string filePath)
         {
             if (string.IsNullOrEmpty(filePath))
                 throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
@@ -246,7 +259,7 @@ namespace vaja_4_hibridno_sifriranje.Network
             FileInfo fileInfo = new FileInfo(filePath);
             return fileInfo.Length;
         }
-        public static byte[] GetFileName(string filePath)
+        private static byte[] GetFileName(string filePath)
         {
             if (string.IsNullOrEmpty(filePath))
                 throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
@@ -259,7 +272,7 @@ namespace vaja_4_hibridno_sifriranje.Network
             return Encoding.UTF8.GetBytes(fileName);
         }
 
-        public static byte[] ReadPartOfBinaryFile(string filePath, long startPosition, int numberOfBytes)
+        private static byte[] ReadPartOfBinaryFile(string filePath, long startPosition, int numberOfBytes)
         {
             if (numberOfBytes <= 0)
                 throw new ArgumentException("Number of bytes to read must be greater than zero.", nameof(numberOfBytes));
@@ -285,7 +298,7 @@ namespace vaja_4_hibridno_sifriranje.Network
 
             return buffer;
         }
-        public static void AppendOrCreateFile(string filePath, byte[] data)
+        private static void AppendOrCreateFile(string filePath, byte[] data)
         {
             if (data == null || data.Length == 0)
                 throw new ArgumentException("Data cannot be null or empty.", nameof(data));
@@ -312,65 +325,51 @@ namespace vaja_4_hibridno_sifriranje.Network
                 MessageBox.Show($"An error occurred: {ex.Message} ... {ex.StackTrace}", "ERROR");
             }
         }
-        private static string? RecieveString(NetworkStream ns, int _MaxBufflen)
+        private static bool Send(NetworkStream ns, byte[] buffer, byte[] aesKey, byte[] aesIv)
         {
             try
             {
-                byte[] buffer = new byte[_MaxBufflen];
-                int len = ns.Read(buffer, 0, buffer.Length);
-                return Encoding.UTF8.GetString(buffer, 0, len);
-            }
-            catch (Exception e)
-            {
-                MessageBox.Show(e.Message + " ... " + e.StackTrace, "ERROR");
-                return null;
-            }
-        }
-        private static bool Send(NetworkStream ns, string msg)
-        {
-            try
-            {
-                byte[] buffer = Encoding.UTF8.GetBytes(msg.ToCharArray(), 0, msg.Length);
-                ns.Write(buffer, 0, buffer.Length);
+                byte[] encryptedData = AESHelper.Encrypt(buffer, aesKey, aesIv);
+                ns.Write(encryptedData, 0, encryptedData.Length);
                 return true;
             }
-            catch (Exception e)
+            catch
             {
-                MessageBox.Show(e.Message + " ... " + e.StackTrace, "ERROR");
                 return false;
             }
         }
-        public static byte[]? RecieveBytes(NetworkStream ns, int BuffSize)
+
+        private static bool Send(NetworkStream ns, string buffer, byte[] aesKey, byte[] aesIv)
+        {
+            byte[] stringBytes = Encoding.UTF8.GetBytes(buffer);
+            return Send(ns, stringBytes, aesKey, aesIv);
+        }
+
+        private static byte[]? RecieveBytes(NetworkStream ns, int buffSize, byte[] aesKey, byte[] aesIv)
         {
             try
             {
-                byte[] buffer = new byte[BuffSize];
-                int len = 0;
-                while (len == 0)
-                {
-                    len = ns.Read(buffer, 0, buffer.Length);
-                }
-                return buffer;
+                byte[] buffer = new byte[buffSize];
+                int bytesRead = ns.Read(buffer, 0, buffSize);
+                if (bytesRead == 0) return null;
+
+                byte[] actualData = new byte[bytesRead];
+                Array.Copy(buffer, actualData, bytesRead);
+
+                return AESHelper.Decrypt(actualData, aesKey, aesIv);
             }
-            catch (Exception e)
+            catch
             {
-                MessageBox.Show(e.Message + " ... " +  e.StackTrace, "ERROR");
                 return null;
             }
         }
-        public static bool Send(NetworkStream ns, byte[] buffer)
+
+        private static string? RecieveString(NetworkStream ns, int maxBufflen, byte[] aesKey, byte[] aesIv)
         {
-            try
-            {
-                ns.Write(buffer, 0, buffer.Length);
-                return true;
-            }
-            catch (Exception e)
-            {
-                MessageBox.Show(e.Message + " ... " + e.StackTrace, "ERROR");
-                return false;
-            }
+            byte[]? decryptedData = RecieveBytes(ns, maxBufflen, aesKey, aesIv);
+            if (decryptedData == null) return null;
+            return Encoding.UTF8.GetString(decryptedData);
         }
-        
+
     }
 }
