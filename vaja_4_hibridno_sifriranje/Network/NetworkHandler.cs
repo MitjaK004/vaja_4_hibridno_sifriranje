@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using vaja_4_hibridno_sifriranje.ViewModelNamespace;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace vaja_4_hibridno_sifriranje.Network
 {
@@ -79,16 +80,7 @@ namespace vaja_4_hibridno_sifriranje.Network
             {
                 SharedSecret = DiffieHellmanHelper.PerformHandshakeClient(NetStream, out AesIV);
 
-                /*AppendOrCreateFile("Client_SS.txt", SharedSecret);
-                AppendOrCreateFile("Client_SS.txt", nl);*/
-
                 AesKey = AESHelper.Encrypt(SharedSecret, SharedSecret, AesIV)[..32];
-                /*AesKey = SharedSecret;
-
-                AppendOrCreateFile("Client_Key.txt", AesKey);
-                AppendOrCreateFile("Client_Key.txt", nl);
-                AppendOrCreateFile("Client_IV.txt", AesIV);
-                AppendOrCreateFile("Client_IV.txt", nl);*/
 
                 VM.ConnectionStatus = Status.Success.ToString();
                 SendAll();
@@ -116,16 +108,7 @@ namespace vaja_4_hibridno_sifriranje.Network
            {
                 SharedSecret = DiffieHellmanHelper.PerformHandshakeServer(NetStream, out AesIV);
 
-                /*AppendOrCreateFile("Server_SS.txt", SharedSecret);
-                AppendOrCreateFile("Server_SS.txt", nl);*/
-
                 AesKey = AESHelper.Encrypt(SharedSecret, SharedSecret, AesIV)[..32];
-                /*AesKey = SharedSecret;
-
-                AppendOrCreateFile("Server_Key.txt", AesKey);
-                AppendOrCreateFile("Server_Key.txt", nl);
-                AppendOrCreateFile("Server_IV.txt", AesIV);
-                AppendOrCreateFile("Server_IV.txt", nl);*/
 
                 VM.ConnectionStatus = Status.Success.ToString();
                 RecieveAll();
@@ -150,8 +133,9 @@ namespace vaja_4_hibridno_sifriranje.Network
         private bool RecieveAll() {
             VM.FilesTransferStatus = Status.Wait.ToString();
             VM.FilesTransferProgress = "0%";
-            NumPackets = 0;
-            PacketShare = 0;
+            Send(NetStream, success, AesKey, AesIV);
+            byte[] progressData = RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
+            (NumPackets, PacketShare) = GetIntDoubleFromBytes(progressData);
             Send(NetStream, success, AesKey, AesIV);
             int NumFiles = int.Parse(RecieveString(NetStream, MaxBufflen, AesKey, AesIV));
             Send(NetStream, success, AesKey, AesIV);
@@ -173,9 +157,9 @@ namespace vaja_4_hibridno_sifriranje.Network
                         Array.Resize(ref Data, ParcelLength);
                         AppendOrCreateFile(fileName, Data);
                         Send(NetStream, success, AesKey, AesIV);
-                    }
-                    FileTransferProgress += PacketShare;
-                    VM.FilesTransferProgress = ViewModel.ProgressToString(FileTransferProgress);
+                        FileTransferProgress += PacketShare;
+                        VM.FilesTransferProgress = ViewModel.ProgressToString(FileTransferProgress);
+                    }  
                 }
                 else {
                     Send(NetStream, fail, AesKey, AesIV);
@@ -191,6 +175,10 @@ namespace vaja_4_hibridno_sifriranje.Network
             VM.FilesTransferStatus = Status.Wait.ToString();
             int NumFiles = SendFilePaths.Count;
             RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
+            (NumPackets, PacketShare) = CalculateAllPackets();
+            byte[] progressData = JoinToBytes(NumPackets, PacketShare);
+            Send(NetStream, progressData, AesKey, AesIV);
+            RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV );
             Send(NetStream, NumFiles.ToString(), AesKey, AesIV);
             RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
             for(int i = 0; i < NumFiles; i++)
@@ -228,7 +216,24 @@ namespace vaja_4_hibridno_sifriranje.Network
             double OnePacketShare = 1.0 / (double)AllPackets;
             return new Tuple<int, double>(AllPackets, OnePacketShare);
         }
-        
+        private static byte[] JoinToBytes(int a, double b)
+        {
+            byte[] bytes = new byte[4+8];
+            byte[] _a = BitConverter.GetBytes(a);
+            byte[] _b = BitConverter.GetBytes(b);
+            Array.Copy(_a, 0, bytes, 0, _a.Length);
+            Array.Copy(_b, 0, bytes, _a.Length, _b.Length);
+            return bytes;
+        }
+        private static Tuple<int, double> GetIntDoubleFromBytes(byte[] bytes)
+        {
+            byte[] _a = new byte[4], _b = new byte[8];
+            Array.Copy(bytes, 0, _a, 0, 4);
+            Array.Copy(bytes, 4, _b, 0, 8);
+            int a = BitConverter.ToInt32(_a);
+            double b = BitConverter.ToDouble(_b);
+            return new Tuple<int, double>(a, b);
+        }
         private static void DeleteFileIfExists(string filePath)
         {
             if (string.IsNullOrEmpty(filePath))
