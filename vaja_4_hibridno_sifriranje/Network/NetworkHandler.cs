@@ -74,7 +74,7 @@ namespace vaja_4_hibridno_sifriranje.Network
             VM.Title = ViewModel.WindowTitleSend;
             VM.ConnectionStatus = Status.Wait.ToString();
             FileTransferProgress = 0;
-            VM.FilesTransferProgress = ViewModel.ProgressToString(FileTransferProgress);
+            VM.ProgressToString(FileTransferProgress);
             iPEndPoint = new IPEndPoint(IPAddress.Parse(IP), Port);
 
             Client = new TcpClient();
@@ -109,7 +109,7 @@ namespace vaja_4_hibridno_sifriranje.Network
             VM.Title = ViewModel.WindowTitleRecieve;
             VM.ConnectionStatus = Status.Wait.ToString();
             FileTransferProgress = 0;
-            VM.FilesTransferProgress = ViewModel.ProgressToString(FileTransferProgress);
+            VM.ProgressToString(FileTransferProgress);
             (NumPackets, PacketShare) = CalculateAllPackets();
             iPEndPoint = new IPEndPoint(IPAddress.Loopback, Port);
             Listener = new TcpListener(iPEndPoint);
@@ -181,7 +181,7 @@ namespace vaja_4_hibridno_sifriranje.Network
                         AppendOrCreateFile(fileName, Data);
                         Send(NetStream, success, AesKey, AesIV);
                         FileTransferProgress += PacketShare;
-                        VM.FilesTransferProgress = ViewModel.ProgressToString(FileTransferProgress);
+                        VM.ProgressToString(FileTransferProgress);
                     }  
                 }
                 else {
@@ -223,7 +223,7 @@ namespace vaja_4_hibridno_sifriranje.Network
                     RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
                     NetStream.Flush();
                     FileTransferProgress += PacketShare;
-                    VM.FilesTransferProgress = ViewModel.ProgressToString(FileTransferProgress);
+                    VM.ProgressToString(FileTransferProgress);
                 }
             }
             VM.FilesTransferProgress = "100%";

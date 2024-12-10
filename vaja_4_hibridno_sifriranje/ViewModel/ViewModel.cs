@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Controls;
 using vaja_4_hibridno_sifriranje.Network;
 
 namespace vaja_4_hibridno_sifriranje.ViewModelNamespace
@@ -16,6 +17,7 @@ namespace vaja_4_hibridno_sifriranje.ViewModelNamespace
         private string _connectionStatus = Status.Stopped.ToString();
         private string _filesTransferStatus = Status.Stopped.ToString();
         private string _filesTransferProgress = "--";
+        private int _ftprogress = 0;
         public const string WindowTitle = "Hybrid Encription";
         public const string WindowTitleRecieve = "Hybrid Encription - Reciever";
         public const string WindowTitleSend = "Hybrid Encription - Sender";
@@ -39,6 +41,14 @@ namespace vaja_4_hibridno_sifriranje.ViewModelNamespace
             set { 
                 _connectionStatus = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("ConnectionStatus"));
+            }
+        }
+        public int FTProgress
+        {
+            get { return _ftprogress; }
+            set { 
+                _ftprogress = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("FTProgress"));
             }
         }
         public string FilesTransferStatus
@@ -68,11 +78,27 @@ namespace vaja_4_hibridno_sifriranje.ViewModelNamespace
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Title"));
             }
         }
-        public static string ProgressToString(double Progress)
+        public void ProgressToString(double _0progress)
         {
             string rval = "";
-            rval = Progress.ToString() + "%";
-            return rval;
+            FTProgress = (int)(100 * _0progress);
+            _0progress = 100 * _0progress;
+            rval = _0progress.ToString();
+            if(_0progress < 10)
+            {
+                if (rval.Length > 3) {
+                    rval = rval.Substring(0, 3);
+                }
+            }
+            else
+            {
+                if (rval.Length > 4)
+                {
+                    rval = rval.Substring(0, 4);
+                }
+            }
+            rval += " %";
+            FilesTransferProgress = rval;
         }
     }
 }

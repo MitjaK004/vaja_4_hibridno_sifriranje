@@ -17,6 +17,7 @@
             <MenuItem Header="File">
                 <MenuItem x:Name="add" Header="Add" Click="add_Click"/>
                 <MenuItem x:Name="clear" Header="Clear" Click="clear_Click"/>
+                <MenuItem x:Name="Make_a_Test_File" Header="Make A Test File" Click="Make_a_Test_File_Click"/>
                 <MenuItem x:Name="exit" Header="Exit" Click="exit_Click"/>
             </MenuItem>
             <MenuItem Header="Send/Recieve">
@@ -48,7 +49,7 @@
             </Grid.ColumnDefinitions>
             <Label Grid.Column="0">File Transfer Progress:</Label>
             <Label Grid.Column="1" Content="{Binding FilesTransferProgress}"></Label>
-            <ProgressBar Grid.Column="2"></ProgressBar>
+            <ProgressBar Value="{Binding FTProgress}" Grid.Column="2"></ProgressBar>
         </Grid>
         <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
