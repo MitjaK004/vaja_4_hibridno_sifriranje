@@ -11,7 +11,8 @@ namespace vaja_4_hibridno_sifriranje.Network
 
     public static class DiffieHellmanHelper
     {
-        public static byte[] PerformHandshakeServer(NetworkStream ns, int buffSize, out byte[] aesIv)
+        public const int buffSize = 1024;
+        public static byte[] PerformHandshakeServer(NetworkStream ns, out byte[] aesIv)
         {
             using (ECDiffieHellmanCng serverECDH = new ECDiffieHellmanCng())
             {
@@ -29,14 +30,14 @@ namespace vaja_4_hibridno_sifriranje.Network
                     byte[] sharedSecret = serverECDH.DeriveKeyMaterial(clientKey);
 
                     aesIv = new byte[16];
-                    new Random().NextBytes(aesIv);
+                    ns.Read(aesIv, 0, 16);
 
                     return sharedSecret;
                 }
             }
         }
 
-        public static byte[] PerformHandshakeClient(NetworkStream ns, int buffSize, out byte[] aesIv)
+        public static byte[] PerformHandshakeClient(NetworkStream ns, out byte[] aesIv)
         {
             using (ECDiffieHellmanCng clientECDH = new ECDiffieHellmanCng())
             {
@@ -54,7 +55,7 @@ namespace vaja_4_hibridno_sifriranje.Network
                     byte[] sharedSecret = clientECDH.DeriveKeyMaterial(serverKey);
 
                     aesIv = new byte[16];
-                    new Random().NextBytes(aesIv);
+                    ns.Write(aesIv, 0, 16);
 
                     return sharedSecret;
                 }

@@ -44,6 +44,7 @@ namespace vaja_4_hibridno_sifriranje.Network
         private bool ConnectionRunning = false;
         private byte[] success = { 1, 2, 3, 4, 5 };
         private byte[] fail = { 7, 8, 9, 10, 11 };
+        private byte[] nl = { (byte)'\n', (byte)'\n' };
         public NetworkHandler() {}
         public NetworkHandler(int _Port) { Port = _Port; }
         public NetworkHandler(string _IP, int _Port) { Port = _Port; IP = _IP; }
@@ -76,9 +77,18 @@ namespace vaja_4_hibridno_sifriranje.Network
 
             using (NetStream = Client.GetStream())
             {
-                SharedSecret = DiffieHellmanHelper.PerformHandshakeClient(NetStream, 1024, out AesIV);
+                SharedSecret = DiffieHellmanHelper.PerformHandshakeClient(NetStream, out AesIV);
+
+                /*AppendOrCreateFile("Client_SS.txt", SharedSecret);
+                AppendOrCreateFile("Client_SS.txt", nl);*/
 
                 AesKey = AESHelper.Encrypt(SharedSecret, SharedSecret, AesIV)[..32];
+                /*AesKey = SharedSecret;
+
+                AppendOrCreateFile("Client_Key.txt", AesKey);
+                AppendOrCreateFile("Client_Key.txt", nl);
+                AppendOrCreateFile("Client_IV.txt", AesIV);
+                AppendOrCreateFile("Client_IV.txt", nl);*/
 
                 VM.ConnectionStatus = Status.Success.ToString();
                 SendAll();
@@ -104,9 +114,18 @@ namespace vaja_4_hibridno_sifriranje.Network
            using (Client = Listener.AcceptTcpClient())
            using (NetStream = Client.GetStream())
            {
-                SharedSecret = DiffieHellmanHelper.PerformHandshakeServer(NetStream, 1024, out AesIV);
+                SharedSecret = DiffieHellmanHelper.PerformHandshakeServer(NetStream, out AesIV);
+
+                /*AppendOrCreateFile("Server_SS.txt", SharedSecret);
+                AppendOrCreateFile("Server_SS.txt", nl);*/
 
                 AesKey = AESHelper.Encrypt(SharedSecret, SharedSecret, AesIV)[..32];
+                /*AesKey = SharedSecret;
+
+                AppendOrCreateFile("Server_Key.txt", AesKey);
+                AppendOrCreateFile("Server_Key.txt", nl);
+                AppendOrCreateFile("Server_IV.txt", AesIV);
+                AppendOrCreateFile("Server_IV.txt", nl);*/
 
                 VM.ConnectionStatus = Status.Success.ToString();
                 RecieveAll();
@@ -130,7 +149,10 @@ namespace vaja_4_hibridno_sifriranje.Network
         }
         private bool RecieveAll() {
             VM.FilesTransferStatus = Status.Wait.ToString();
-            (NumPackets, PacketShare) = CalculateAllPackets();
+            VM.FilesTransferProgress = "0%";
+            NumPackets = 0;
+            PacketShare = 0;
+            Send(NetStream, success, AesKey, AesIV);
             int NumFiles = int.Parse(RecieveString(NetStream, MaxBufflen, AesKey, AesIV));
             Send(NetStream, success, AesKey, AesIV);
             for (int i = 0; i < NumFiles; i++)
@@ -168,6 +190,7 @@ namespace vaja_4_hibridno_sifriranje.Network
         private bool SendAll() {
             VM.FilesTransferStatus = Status.Wait.ToString();
             int NumFiles = SendFilePaths.Count;
+            RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
             Send(NetStream, NumFiles.ToString(), AesKey, AesIV);
             RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
             for(int i = 0; i < NumFiles; i++)
