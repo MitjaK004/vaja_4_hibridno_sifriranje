@@ -55,6 +55,7 @@ namespace vaja_4_hibridno_sifriranje.Network
                     byte[] sharedSecret = clientECDH.DeriveKeyMaterial(serverKey);
 
                     aesIv = new byte[16];
+                    new Random().NextBytes(aesIv);
                     ns.Write(aesIv, 0, 16);
 
                     return sharedSecret;

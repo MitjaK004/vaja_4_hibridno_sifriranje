@@ -28,7 +28,7 @@ namespace vaja_4_hibridno_sifriranje.Network
         public int NumPackets { get; private set; } = 0;
         private ViewModel VM;
         private const int MaxBufflen = 4096;
-        private const int KeyLength = 8192;
+        private const int DataBufflen = 4112;
         private List<byte[]> RecievedFileData = new List<byte[]>();
         private List<byte[]> SendFileData = new List<byte[]>();
         private List<string> RecievedFileNames = new List<string>();
@@ -93,7 +93,7 @@ namespace vaja_4_hibridno_sifriranje.Network
                     SendAll();
                 }
                 catch (Exception e) {
-                    MessageBox.Show(e.Message + " ... " + e.StackTrace, "ERROR");
+                    MessageBox.Show(e.Message + " \n " + e.StackTrace, "ERROR");
                 }
                 finally
                 {
@@ -130,7 +130,7 @@ namespace vaja_4_hibridno_sifriranje.Network
                 }
                 catch (Exception e)
                 {
-                    MessageBox.Show(e.Message + " ... " + e.StackTrace, "ERROR");
+                    MessageBox.Show(e.Message + " \n " + e.StackTrace, "ERROR");
                 }
                 finally
                 {
@@ -176,7 +176,7 @@ namespace vaja_4_hibridno_sifriranje.Network
                     {
                         int ParcelLength = BitConverter.ToInt32(RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV));
                         Send(NetStream, success, AesKey, AesIV);
-                        byte[] Data = RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
+                        byte[] Data = RecieveBytes(NetStream, DataBufflen, AesKey, AesIV);
                         Array.Resize(ref Data, ParcelLength);
                         AppendOrCreateFile(fileName, Data);
                         Send(NetStream, success, AesKey, AesIV);
@@ -221,6 +221,7 @@ namespace vaja_4_hibridno_sifriranje.Network
                     RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
                     Send(NetStream, Data, AesKey, AesIV);
                     RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
+                    NetStream.Flush();
                     FileTransferProgress += PacketShare;
                     VM.FilesTransferProgress = ViewModel.ProgressToString(FileTransferProgress);
                 }
@@ -373,7 +374,7 @@ namespace vaja_4_hibridno_sifriranje.Network
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"An error occurred: {ex.Message} ... {ex.StackTrace}", "ERROR");
+                MessageBox.Show($"An error occurred: {ex.Message} \n {ex.StackTrace}", "ERROR");
             }
         }
         private static bool Send(NetworkStream ns, byte[] buffer, byte[] aesKey, byte[] aesIv)
@@ -384,8 +385,9 @@ namespace vaja_4_hibridno_sifriranje.Network
                 ns.Write(encryptedData, 0, encryptedData.Length);
                 return true;
             }
-            catch
+            catch (Exception e)
             {
+                MessageBox.Show(e.Message + " \n " + e.StackTrace, "ERROR");
                 return false;
             }
         }
@@ -409,8 +411,9 @@ namespace vaja_4_hibridno_sifriranje.Network
 
                 return AESHelper.Decrypt(actualData, aesKey, aesIv);
             }
-            catch
+            catch(Exception e)
             {
+                MessageBox.Show(e.Message + " \n " + e.StackTrace, "ERROR");
                 return null;
             }
         }
