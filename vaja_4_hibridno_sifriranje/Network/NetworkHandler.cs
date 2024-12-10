@@ -66,6 +66,10 @@ namespace vaja_4_hibridno_sifriranje.Network
                 return false;
             }
         }
+        public void Clear()
+        {
+            SendFilePaths.Clear();
+        }
         private Task SendFiles() {
             VM.Title = ViewModel.WindowTitleSend;
             VM.ConnectionStatus = Status.Wait.ToString();
@@ -83,10 +87,19 @@ namespace vaja_4_hibridno_sifriranje.Network
                 AesKey = AESHelper.Encrypt(SharedSecret, SharedSecret, AesIV)[..32];
 
                 VM.ConnectionStatus = Status.Success.ToString();
-                SendAll();
-            }
 
-            MessageBox.Show("Files Sent Succesfully", "Info");
+                try
+                {
+                    SendAll();
+                }
+                catch (Exception e) {
+                    MessageBox.Show(e.Message + " ... " + e.StackTrace, "ERROR");
+                }
+                finally
+                {
+                    MessageBox.Show("Files Sent Succesfully", "Info");
+                }
+            }
             VM.ConnectionStatus = Status.Stopped.ToString();
             Client?.Close();
             VM.Title = ViewModel.WindowTitle;
@@ -111,11 +124,21 @@ namespace vaja_4_hibridno_sifriranje.Network
                 AesKey = AESHelper.Encrypt(SharedSecret, SharedSecret, AesIV)[..32];
 
                 VM.ConnectionStatus = Status.Success.ToString();
-                RecieveAll();
-           }
+
+                try { 
+                    RecieveAll();
+                }
+                catch (Exception e)
+                {
+                    MessageBox.Show(e.Message + " ... " + e.StackTrace, "ERROR");
+                }
+                finally
+                {
+                    MessageBox.Show("Files Recieved Succesfully", "Info");
+                }
+            }
 
             Listener.Stop();
-            MessageBox.Show("Files Recieved Succesfully", "Info");
 
             VM.ConnectionStatus = Status.Stopped.ToString();
             VM.Title = ViewModel.WindowTitle;

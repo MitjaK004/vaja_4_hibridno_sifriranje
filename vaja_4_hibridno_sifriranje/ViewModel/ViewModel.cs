@@ -26,7 +26,14 @@ namespace vaja_4_hibridno_sifriranje.ViewModelNamespace
             _filePaths.Add(new Path(FilePath));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("FilePaths"));
         }
-        public ObservableCollection<Path> FilePaths { get { return _filePaths; } }
+        public ObservableCollection<Path> FilePaths { 
+            get { return _filePaths; }
+            set
+            {
+                _filePaths = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("FilePath"));
+            }
+        }
         public string ConnectionStatus { 
             get { return _connectionStatus; }
             set { 

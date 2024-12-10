@@ -16,6 +16,7 @@
         <Menu Grid.Row="0" FontSize="16" >
             <MenuItem Header="File">
                 <MenuItem x:Name="add" Header="Add" Click="add_Click"/>
+                <MenuItem x:Name="clear" Header="Clear" Click="clear_Click"/>
                 <MenuItem x:Name="exit" Header="Exit" Click="exit_Click"/>
             </MenuItem>
             <MenuItem Header="Send/Recieve">

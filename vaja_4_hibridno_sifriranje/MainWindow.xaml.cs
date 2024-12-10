@@ -95,5 +95,11 @@ namespace vaja_4_hibridno_sifriranje
             VM.Title = ViewModel.WindowTitle;
             System.Environment.Exit(1);
         }
+
+        private void clear_Click(object sender, RoutedEventArgs e)
+        {
+            networkHandler.Clear();
+            VM.FilePaths.Clear();
+        }
     }
 }
