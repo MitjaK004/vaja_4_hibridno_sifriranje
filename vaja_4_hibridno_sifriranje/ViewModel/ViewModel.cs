@@ -10,7 +10,7 @@ using vaja_4_hibridno_sifriranje.Network;
 
 namespace vaja_4_hibridno_sifriranje.ViewModelNamespace
 {
-    unsafe class ViewModel : INotifyPropertyChanged
+    class ViewModel : INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler? PropertyChanged = null;
         private ObservableCollection<Path> _filePaths = new ObservableCollection<Path>();

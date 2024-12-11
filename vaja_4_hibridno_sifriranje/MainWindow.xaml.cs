@@ -101,6 +101,10 @@ namespace vaja_4_hibridno_sifriranje
         {
             networkHandler.Clear();
             VM.FilePaths.Clear();
+            VM.FTProgress = 0;
+            VM.ConnectionStatus = Status.Stopped.ToString();
+            VM.FilesTransferStatus = Status.Stopped.ToString();
+            VM.FilesTransferProgress = "--";
         }
 
         private void Make_a_Test_File_Click(object sender, RoutedEventArgs e)

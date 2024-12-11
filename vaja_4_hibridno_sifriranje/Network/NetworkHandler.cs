@@ -88,18 +88,18 @@ namespace vaja_4_hibridno_sifriranje.Network
 
                 VM.ConnectionStatus = Status.Success.ToString();
 
-                try
-                {
-                    SendAll();
-                }
-                catch (Exception e) {
-                    MessageBox.Show(e.Message + " \n " + e.StackTrace, "ERROR");
-                }
-                finally
-                {
-                    MessageBox.Show("Files Sent Succesfully", "Info");
+
+                bool success = SendAll();
+                if (!success) { 
+                    MessageBox.Show("Error while sending files!", "ERROR");
+                    VM.ConnectionStatus = Status.Error.ToString();
+                    VM.FilesTransferStatus = Status.Error.ToString();
+                    Client?.Close();
+                    VM.Title = ViewModel.WindowTitle;
+                    return Task.CompletedTask;
                 }
             }
+            MessageBox.Show("Files Sent Succesfully", "Info");
             VM.ConnectionStatus = Status.Stopped.ToString();
             Client?.Close();
             VM.Title = ViewModel.WindowTitle;
@@ -125,19 +125,20 @@ namespace vaja_4_hibridno_sifriranje.Network
 
                 VM.ConnectionStatus = Status.Success.ToString();
 
-                try { 
-                    RecieveAll();
-                }
-                catch (Exception e)
-                {
-                    MessageBox.Show(e.Message + " \n " + e.StackTrace, "ERROR");
-                }
-                finally
-                {
-                    MessageBox.Show("Files Recieved Succesfully", "Info");
-                }
+                
+                bool success = RecieveAll();
+                if (!success) { 
+                    MessageBox.Show("Error while recieving files!", "ERROR");
+                    Listener.Stop();
+
+                    VM.ConnectionStatus = Status.Error.ToString();
+                    VM.FilesTransferStatus = Status.Error.ToString();
+                    VM.Title = ViewModel.WindowTitle;
+                    return Task.CompletedTask;
+                }  
             }
 
+            MessageBox.Show("Files Recieved Succesfully", "Info");
             Listener.Stop();
 
             VM.ConnectionStatus = Status.Stopped.ToString();
@@ -154,77 +155,129 @@ namespace vaja_4_hibridno_sifriranje.Network
             Task.Run(RecieveFiles);
         }
         private bool RecieveAll() {
-            VM.FilesTransferStatus = Status.Wait.ToString();
-            VM.FilesTransferProgress = "0%";
-            Send(NetStream, success, AesKey, AesIV);
-            byte[] progressData = RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
-            (NumPackets, PacketShare) = GetIntDoubleFromBytes(progressData);
-            Send(NetStream, success, AesKey, AesIV);
-            int NumFiles = int.Parse(RecieveString(NetStream, MaxBufflen, AesKey, AesIV));
-            Send(NetStream, success, AesKey, AesIV);
-            for (int i = 0; i < NumFiles; i++)
+            try
             {
-                string fileName = RecieveString(NetStream, MaxBufflen, AesKey, AesIV);
-                Send(NetStream, success, AesKey, AesIV);
-                int NumParcels = BitConverter.ToInt32(RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV), 0);
-                Send(NetStream, success, AesKey, AesIV);
-                long FileSize = BitConverter.ToInt64(RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV), 0);
-                if (IsSpaceAvailableInCurrentFolder(FileSize)) {
-                    DeleteFileIfExists(fileName);
-                    Send(NetStream, success, AesKey, AesIV);
-                    for(int j = 0; j < NumParcels; j++)
+                VM.FilesTransferStatus = Status.Wait.ToString();
+                VM.FilesTransferProgress = "0%";
+                Send(success);
+                byte[] progressData = RecieveBytes();
+                (NumPackets, PacketShare) = GetIntDoubleFromBytes(progressData);
+                Send(success);
+                int NumFiles = int.Parse(RecieveString());
+                Send(success);
+                for (int i = 0; i < NumFiles; i++)
+                {
+                    try
                     {
-                        int ParcelLength = BitConverter.ToInt32(RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV));
-                        Send(NetStream, success, AesKey, AesIV);
-                        byte[] Data = RecieveBytes(NetStream, DataBufflen, AesKey, AesIV);
-                        Array.Resize(ref Data, ParcelLength);
-                        AppendOrCreateFile(fileName, Data);
-                        Send(NetStream, success, AesKey, AesIV);
-                        FileTransferProgress += PacketShare;
-                        VM.ProgressToString(FileTransferProgress);
-                    }  
+                        string fileName = RecieveString();
+                        Send(success);
+                        int NumParcels = BitConverter.ToInt32(RecieveBytes(), 0);
+                        Send(success);
+                        long FileSize = BitConverter.ToInt64(RecieveBytes(), 0);
+                        if (IsSpaceAvailableInCurrentFolder(FileSize))
+                        {
+                            try
+                            {
+                                DeleteFileIfExists(fileName);
+                                Send(success);
+                                for (int j = 0; j < NumParcels; j++)
+                                {
+                                    try
+                                    {
+                                        int ParcelLength = BitConverter.ToInt32(RecieveBytes());
+                                        Send(success);
+                                        byte[] Data = RecieveBytes();
+                                        Array.Resize(ref Data, ParcelLength);
+                                        AppendOrCreateFile(fileName, Data);
+                                        Send(success);
+                                        FileTransferProgress += PacketShare;
+                                        VM.ProgressToString(FileTransferProgress);
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        MessageBox.Show(e.Message + "\n" + e.StackTrace, "ERROR");
+                                        return false;
+                                    }
+                                }
+                            }
+                            catch (Exception e) {
+                                MessageBox.Show(e.Message + "\n" + e.StackTrace, "ERROR");
+                                return false;
+                            }
+                        }
+                        else
+                        {
+                            Send(fail);
+                            throw new Exception("Not enough disk space!!!");
+                        }
+                    }
+                    catch (Exception ex) {
+                        MessageBox.Show(ex.Message + "\n" + ex.StackTrace, "ERROR");
+                        return false;
+                    }
                 }
-                else {
-                    Send(NetStream, fail, AesKey, AesIV);
-                    MessageBox.Show("Not enough disk space!!!", "ERROR");
-                    return false;
-                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message + "\n" + ex.StackTrace, "ERROR");
+                return false;
             }
             VM.FilesTransferProgress = "100%";
             VM.FilesTransferStatus = Status.Success.ToString();
             return true; 
         }
         private bool SendAll() {
-            VM.FilesTransferStatus = Status.Wait.ToString();
-            int NumFiles = SendFilePaths.Count;
-            RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
-            (NumPackets, PacketShare) = CalculateAllPackets();
-            byte[] progressData = JoinToBytes(NumPackets, PacketShare);
-            Send(NetStream, progressData, AesKey, AesIV);
-            RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV );
-            Send(NetStream, NumFiles.ToString(), AesKey, AesIV);
-            RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
-            for(int i = 0; i < NumFiles; i++)
+            try
             {
-                Send(NetStream, GetFileName(SendFilePaths[i]), AesKey, AesIV);
-                RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
-                int NumParcels = GetNumParcels(SendFilePaths[i], MaxBufflen);
-                Send(NetStream, BitConverter.GetBytes(NumParcels), AesKey, AesIV);
-                RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
-                long FileSize = GetFileSize(SendFilePaths[i]);
-                Send(NetStream, BitConverter.GetBytes(FileSize), AesKey, AesIV);
-                RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
-                for(int j = 0, x = 0; j < NumParcels; j++, x += MaxBufflen)
+                VM.FilesTransferStatus = Status.Wait.ToString();
+                int NumFiles = SendFilePaths.Count;
+                RecieveBytes();
+                (NumPackets, PacketShare) = CalculateAllPackets();
+                byte[] progressData = JoinToBytes(NumPackets, PacketShare);
+                Send(progressData);
+                RecieveBytes();
+                Send(NumFiles.ToString());
+                RecieveBytes();
+                for (int i = 0; i < NumFiles; i++)
                 {
-                    byte[] Data = ReadPartOfBinaryFile(SendFilePaths[i], x, MaxBufflen);
-                    Send(NetStream, BitConverter.GetBytes((int) Data.Length), AesKey, AesIV);
-                    RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
-                    Send(NetStream, Data, AesKey, AesIV);
-                    RecieveBytes(NetStream, MaxBufflen, AesKey, AesIV);
-                    NetStream.Flush();
-                    FileTransferProgress += PacketShare;
-                    VM.ProgressToString(FileTransferProgress);
+                    try
+                    {
+                        Send(GetFileName(SendFilePaths[i]));
+                        RecieveBytes();
+                        int NumParcels = GetNumParcels(SendFilePaths[i], MaxBufflen);
+                        Send(BitConverter.GetBytes(NumParcels));
+                        RecieveBytes();
+                        long FileSize = GetFileSize(SendFilePaths[i]);
+                        Send(BitConverter.GetBytes(FileSize));
+                        RecieveBytes();
+                        for (int j = 0, x = 0; j < NumParcels; j++, x += MaxBufflen)
+                        {
+                            try
+                            {
+                                byte[] Data = ReadPartOfBinaryFile(SendFilePaths[i], x, MaxBufflen);
+                                Send(BitConverter.GetBytes((int)Data.Length));
+                                RecieveBytes();
+                                Send(Data);
+                                RecieveBytes();
+                                NetStream.Flush();
+                                FileTransferProgress += PacketShare;
+                                VM.ProgressToString(FileTransferProgress);
+                            }
+                            catch (Exception e) {
+                                MessageBox.Show(e.Message + "\n" + e.StackTrace, "ERROR");
+                                return false;
+                            }
+                        }
+                    }
+                    catch (Exception e) {
+                        MessageBox.Show(e.Message + "\n" + e.StackTrace, "ERROR");
+                        return false;
+                    }
                 }
+            }
+            catch (Exception e) {
+                MessageBox.Show(e.Message + "\n" + e.StackTrace, "ERROR");
+                return false;
             }
             VM.FilesTransferProgress = "100%";
             VM.FilesTransferStatus = Status.Success.ToString();
@@ -239,6 +292,37 @@ namespace vaja_4_hibridno_sifriranje.Network
             }
             double OnePacketShare = 1.0 / (double)AllPackets;
             return new Tuple<int, double>(AllPackets, OnePacketShare);
+        }
+        private bool Send(byte[] buffer)
+        {
+            byte[] encryptedData = AESHelper.Encrypt(buffer, AesKey, AesIV);
+            NetStream.Write(encryptedData, 0, encryptedData.Length);
+            return true;
+        }
+
+        private bool Send(string buffer)
+        {
+            byte[] stringBytes = Encoding.UTF8.GetBytes(buffer);
+            return Send(stringBytes);
+        }
+
+        private byte[]? RecieveBytes()
+        {
+            byte[] buffer = new byte[DataBufflen];
+            int bytesRead = NetStream.Read(buffer, 0, DataBufflen);
+            if (bytesRead == 0) return null;
+
+            byte[] actualData = new byte[bytesRead];
+            Array.Copy(buffer, actualData, bytesRead);
+
+            return AESHelper.Decrypt(actualData, AesKey, AesIV);
+        }
+
+        private string? RecieveString()
+        {
+            byte[]? decryptedData = RecieveBytes();
+            if (decryptedData == null) return null;
+            return Encoding.UTF8.GetString(decryptedData);
         }
         private static byte[] JoinToBytes(int a, double b)
         {
@@ -377,53 +461,5 @@ namespace vaja_4_hibridno_sifriranje.Network
                 MessageBox.Show($"An error occurred: {ex.Message} \n {ex.StackTrace}", "ERROR");
             }
         }
-        private static bool Send(NetworkStream ns, byte[] buffer, byte[] aesKey, byte[] aesIv)
-        {
-            try
-            {
-                byte[] encryptedData = AESHelper.Encrypt(buffer, aesKey, aesIv);
-                ns.Write(encryptedData, 0, encryptedData.Length);
-                return true;
-            }
-            catch (Exception e)
-            {
-                MessageBox.Show(e.Message + " \n " + e.StackTrace, "ERROR");
-                return false;
-            }
-        }
-
-        private static bool Send(NetworkStream ns, string buffer, byte[] aesKey, byte[] aesIv)
-        {
-            byte[] stringBytes = Encoding.UTF8.GetBytes(buffer);
-            return Send(ns, stringBytes, aesKey, aesIv);
-        }
-
-        private static byte[]? RecieveBytes(NetworkStream ns, int buffSize, byte[] aesKey, byte[] aesIv)
-        {
-            try
-            {
-                byte[] buffer = new byte[buffSize];
-                int bytesRead = ns.Read(buffer, 0, buffSize);
-                if (bytesRead == 0) return null;
-
-                byte[] actualData = new byte[bytesRead];
-                Array.Copy(buffer, actualData, bytesRead);
-
-                return AESHelper.Decrypt(actualData, aesKey, aesIv);
-            }
-            catch(Exception e)
-            {
-                MessageBox.Show(e.Message + " \n " + e.StackTrace, "ERROR");
-                return null;
-            }
-        }
-
-        private static string? RecieveString(NetworkStream ns, int maxBufflen, byte[] aesKey, byte[] aesIv)
-        {
-            byte[]? decryptedData = RecieveBytes(ns, maxBufflen, aesKey, aesIv);
-            if (decryptedData == null) return null;
-            return Encoding.UTF8.GetString(decryptedData);
-        }
-
     }
 }
