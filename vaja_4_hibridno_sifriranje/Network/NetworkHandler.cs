@@ -40,7 +40,7 @@ namespace vaja_4_hibridno_sifriranje.Network
         private byte[] AesIV = null;
         private byte[] SharedSecret = null;
         private byte[] AesKey = null;
-        public string Downloads = "downloaded_files/";
+        public string Downloads = "downloaded_files\\";
         public string IP = "127.0.0.1";
         public int Port = 5789;
         private bool ConnectionRunning = false;
@@ -79,8 +79,23 @@ namespace vaja_4_hibridno_sifriranje.Network
             iPEndPoint = new IPEndPoint(IPAddress.Parse(IP), Port);
 
             Client = new TcpClient();
-            Client.Connect(iPEndPoint);
 
+            try
+            {
+                Client.Connect(iPEndPoint);
+            }
+            catch(Exception e)
+            {
+                MessageBox.Show($"Cannot connect to server!\nIP: {IP}\nPort: {Port}", "ERROR");
+                Client?.Close();
+                VM.Title = ViewModel.WindowTitle;
+                VM.FilesTransferProgress = "--";
+                VM.FilesTransferStatus = Status.Stopped.ToString();
+                VM.ConnectionStatus = Status.Error.ToString();
+                VM.FTProgress = 0;
+                return Task.CompletedTask;
+            }
+            
             using (NetStream = Client.GetStream())
             {
                 SharedSecret = DiffieHellmanHelper.PerformHandshakeClient(NetStream, out AesIV);
@@ -200,6 +215,10 @@ namespace vaja_4_hibridno_sifriranje.Network
                                         return false;
                                     }
                                 }
+                                Application.Current.Dispatcher.Invoke(() =>
+                                {
+                                    VM.AddFilePath(fileName);
+                                });
                             }
                             catch (Exception e) {
                                 MessageBox.Show(e.Message + "\n" + e.StackTrace, "ERROR");
