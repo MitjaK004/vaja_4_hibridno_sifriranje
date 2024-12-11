@@ -40,6 +40,7 @@ namespace vaja_4_hibridno_sifriranje.Network
         private byte[] AesIV = null;
         private byte[] SharedSecret = null;
         private byte[] AesKey = null;
+        public string Downloads = "downloaded_files/";
         public string IP = "127.0.0.1";
         public int Port = 5789;
         private bool ConnectionRunning = false;
@@ -178,7 +179,7 @@ namespace vaja_4_hibridno_sifriranje.Network
                         {
                             try
                             {
-                                DeleteFileIfExists(fileName);
+                                DeleteFileIfPreviouslyDownloaded(fileName);
                                 Send(success);
                                 for (int j = 0; j < NumParcels; j++)
                                 {
@@ -324,23 +325,48 @@ namespace vaja_4_hibridno_sifriranje.Network
             if (decryptedData == null) return null;
             return Encoding.UTF8.GetString(decryptedData);
         }
-        private static byte[] JoinToBytes(int a, double b)
+        private void AppendOrCreateFile(string _filePath, byte[] data)
         {
-            byte[] bytes = new byte[4+8];
-            byte[] _a = BitConverter.GetBytes(a);
-            byte[] _b = BitConverter.GetBytes(b);
-            Array.Copy(_a, 0, bytes, 0, _a.Length);
-            Array.Copy(_b, 0, bytes, _a.Length, _b.Length);
-            return bytes;
+            string filePath = Downloads + _filePath;
+            if (data == null || data.Length == 0)
+                throw new ArgumentException("Data cannot be null or empty.", nameof(data));
+
+            try
+            {
+                if (File.Exists(filePath))
+                {
+                    using (FileStream fs = new FileStream(filePath, FileMode.Append, FileAccess.Write))
+                    {
+                        fs.Write(data, 0, data.Length);
+                    }
+                }
+                else
+                {
+                    CreateDownloadsFolderIfNotExsist();
+                    using (FileStream fs = new FileStream(filePath, FileMode.Create, FileAccess.Write))
+                    {
+                        fs.Write(data, 0, data.Length);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"An error occurred: {ex.Message} \n {ex.StackTrace}", "ERROR");
+            }
         }
-        private static Tuple<int, double> GetIntDoubleFromBytes(byte[] bytes)
+        private void CreateDownloadsFolderIfNotExsist()
         {
-            byte[] _a = new byte[4], _b = new byte[8];
-            Array.Copy(bytes, 0, _a, 0, 4);
-            Array.Copy(bytes, 4, _b, 0, 8);
-            int a = BitConverter.ToInt32(_a);
-            double b = BitConverter.ToDouble(_b);
-            return new Tuple<int, double>(a, b);
+            if (!Directory.Exists(Downloads))
+            {
+                Directory.CreateDirectory(Downloads);
+            }
+        }
+        private void DeleteFileIfPreviouslyDownloaded(string filePath)
+        {
+            if (Directory.Exists(Downloads))
+            {
+                DeleteFileIfExists(Downloads + filePath);
+            }
         }
         private static void DeleteFileIfExists(string filePath)
         {
@@ -358,6 +384,24 @@ namespace vaja_4_hibridno_sifriranje.Network
                     MessageBox.Show($"Error deleting file '{filePath}': {ex.Message}");
                 }
             }
+        }
+        private static byte[] JoinToBytes(int a, double b)
+        {
+            byte[] bytes = new byte[4+8];
+            byte[] _a = BitConverter.GetBytes(a);
+            byte[] _b = BitConverter.GetBytes(b);
+            Array.Copy(_a, 0, bytes, 0, _a.Length);
+            Array.Copy(_b, 0, bytes, _a.Length, _b.Length);
+            return bytes;
+        }
+        private static Tuple<int, double> GetIntDoubleFromBytes(byte[] bytes)
+        {
+            byte[] _a = new byte[4], _b = new byte[8];
+            Array.Copy(bytes, 0, _a, 0, 4);
+            Array.Copy(bytes, 4, _b, 0, 8);
+            int a = BitConverter.ToInt32(_a);
+            double b = BitConverter.ToDouble(_b);
+            return new Tuple<int, double>(a, b);
         }
         private static bool IsSpaceAvailableInCurrentFolder(long requiredSpaceInBytes)
         {
@@ -433,33 +477,6 @@ namespace vaja_4_hibridno_sifriranje.Network
             }
 
             return buffer;
-        }
-        private static void AppendOrCreateFile(string filePath, byte[] data)
-        {
-            if (data == null || data.Length == 0)
-                throw new ArgumentException("Data cannot be null or empty.", nameof(data));
-
-            try
-            {
-                if (File.Exists(filePath))
-                {
-                    using (FileStream fs = new FileStream(filePath, FileMode.Append, FileAccess.Write))
-                    {
-                        fs.Write(data, 0, data.Length);
-                    }
-                }
-                else
-                {
-                    using (FileStream fs = new FileStream(filePath, FileMode.Create, FileAccess.Write))
-                    {
-                        fs.Write(data, 0, data.Length);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"An error occurred: {ex.Message} \n {ex.StackTrace}", "ERROR");
-            }
-        }
+        }  
     }
 }
